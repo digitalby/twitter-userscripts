@@ -27,11 +27,23 @@
         return String(n);
     }
 
+    let reprocessTimer = null;
+
+    function scheduleReprocess() {
+        if (reprocessTimer) return;
+        reprocessTimer = setTimeout(() => {
+            reprocessTimer = null;
+            processTweets();
+        }, 100);
+    }
+
     function extractUsers(obj) {
         if (!obj || typeof obj !== 'object') return;
         if (obj.legacy && typeof obj.legacy.followers_count === 'number' && obj.legacy.screen_name) {
             const handle = obj.legacy.screen_name.toLowerCase();
+            const prev = followerCache.get(handle);
             followerCache.set(handle, obj.legacy.followers_count);
+            if (prev === undefined) scheduleReprocess();
         }
         for (const key of Object.keys(obj)) {
             const val = obj[key];
@@ -106,22 +118,32 @@
         for (const article of articles) {
             if (article.hasAttribute(BADGE_ATTR)) continue;
 
-            const handleEl = article.querySelector('a[href*="/"] div[dir="ltr"] > span');
-            if (!handleEl) continue;
-            const handleText = handleEl.textContent.trim();
-            if (!handleText.startsWith('@')) continue;
+            // Find the handle using the User-Name test ID container
+            const userNameContainer = article.querySelector('[data-testid="User-Name"]');
+            if (!userNameContainer) continue;
 
-            const handle = handleText.slice(1).toLowerCase();
+            // Look for the @handle text within the container
+            let handle = null;
+            const spans = userNameContainer.querySelectorAll('span');
+            for (const span of spans) {
+                const text = span.textContent.trim();
+                if (text.startsWith('@') && span.children.length === 0) {
+                    handle = text.slice(1).toLowerCase();
+                    break;
+                }
+            }
+            if (!handle) continue;
+
             const count = followerCache.get(handle);
             if (count === undefined) continue;
-
-            article.setAttribute(BADGE_ATTR, handle);
 
             const timeEl = article.querySelector('time');
             if (!timeEl) continue;
             const timeLink = timeEl.closest('a');
             const container = timeLink ? timeLink.parentElement : timeEl.parentElement;
             if (!container) continue;
+
+            article.setAttribute(BADGE_ATTR, handle);
 
             const badge = document.createElement('span');
             badge.className = 'tm-follower-badge';
