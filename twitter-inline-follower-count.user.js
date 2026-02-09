@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.6.0
+// @version      1.6.1
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -75,6 +75,7 @@
     let fetchRunning = false;
     let queueGeneration = 0; // incremented on cancellation
     let consecutiveRequests = 0; // for escalating delay
+    let lastRequestTime = 0; // timestamp of last completed request
     let discoveredQueryId = null;
     let discoveryPromise = null;
     let capturedFeatures = null;
@@ -152,7 +153,7 @@
         queueGeneration++;
         fetchQueue = [];
         fetchQueued.clear();
-        consecutiveRequests = 0;
+        // Don't reset consecutiveRequests — the escalation must persist across queue rebuilds
     }
 
     function queueUserFetch(handle) {
@@ -186,14 +187,22 @@
         fetchRunning = true;
         const handle = fetchQueue.shift();
         requestTimestamps.push(Date.now());
+
+        // If it's been >60s since the last request, reset escalation
+        const now = Date.now();
+        if (lastRequestTime && (now - lastRequestTime) > 60000) {
+            consecutiveRequests = 0;
+        }
+        lastRequestTime = now;
+
         fetchUserByScreenName(handle).finally(() => {
             fetchRunning = false;
             // Cancelled — don't continue draining the old queue
             if (queueGeneration !== gen) return;
-            // Escalating delay: 1-3s, 2-4s, 3-5s, ... capped at 10-12s
-            const step = Math.min(consecutiveRequests, 9);
+            // Escalating delay: 1-3s, 2-4s, 3-5s, 4-6s, ... no cap
+            const delay = randomDelay(1000 + consecutiveRequests * 1000, 3000 + consecutiveRequests * 1000);
             consecutiveRequests++;
-            const delay = randomDelay(1000 + step * 1000, 3000 + step * 1000);
+            console.log('[FollowerCount] Next fetch in', Math.round(delay / 1000), 's (step', consecutiveRequests, ')');
             setTimeout(() => { if (queueGeneration === gen) drainFetchQueue(); }, delay);
         });
     }
