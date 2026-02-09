@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.6.1
+// @version      1.6.3
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -406,6 +406,10 @@
                 max-width: 100%;
                 padding: 0 0 2px 0;
             }
+            .tm-f-label {
+                font-style: italic;
+                opacity: 0.6;
+            }
             .tm-usercell-badge {
                 color: rgb(113, 118, 123);
                 font-size: 13px;
@@ -467,7 +471,7 @@
             // Follower count badge inline with timestamp
             const badge = document.createElement('span');
             badge.className = 'tm-follower-badge';
-            badge.textContent = formatCount(cached.followers) + 'f';
+            badge.innerHTML = '<span class="tm-f-label">f</span>\u200a' + formatCount(cached.followers);
             container.appendChild(badge);
 
             // Bio line below the User-Name row
@@ -516,7 +520,7 @@
             if (handleSpan) {
                 const badge = document.createElement('span');
                 badge.className = 'tm-usercell-badge';
-                badge.textContent = formatCount(cached.followers) + 'f';
+                badge.innerHTML = '<span class="tm-f-label">f</span>\u200a' + formatCount(cached.followers);
                 handleSpan.parentElement.appendChild(badge);
             }
         }
