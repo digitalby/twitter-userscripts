@@ -37,23 +37,38 @@
         }, 100);
     }
 
-    function extractUsers(obj) {
+    function cacheUser(screenName, followersCount) {
+        const handle = screenName.toLowerCase();
+        const prev = followerCache.get(handle);
+        followerCache.set(handle, followersCount);
+        if (prev === undefined) {
+            console.log('[FollowerCount] Cached:', handle, formatCount(followersCount));
+            scheduleReprocess();
+        }
+    }
+
+    function extractUsers(obj, depth) {
         if (!obj || typeof obj !== 'object') return;
+        if (depth > 50) return;
+        // Standard legacy structure
         if (obj.legacy && typeof obj.legacy.followers_count === 'number' && obj.legacy.screen_name) {
-            const handle = obj.legacy.screen_name.toLowerCase();
-            const prev = followerCache.get(handle);
-            followerCache.set(handle, obj.legacy.followers_count);
-            if (prev === undefined) scheduleReprocess();
+            cacheUser(obj.legacy.screen_name, obj.legacy.followers_count);
+        }
+        // Alternative: screen_name and followers_count at the same level
+        if (typeof obj.screen_name === 'string' && typeof obj.followers_count === 'number') {
+            cacheUser(obj.screen_name, obj.followers_count);
         }
         for (const key of Object.keys(obj)) {
             const val = obj[key];
             if (Array.isArray(val)) {
-                val.forEach(item => extractUsers(item));
+                val.forEach(item => extractUsers(item, depth + 1));
             } else if (val && typeof val === 'object') {
-                extractUsers(val);
+                extractUsers(val, depth + 1);
             }
         }
     }
+
+    console.log('[FollowerCount] Script loaded, intercepting fetch/XHR');
 
     const origFetch = window.fetch;
     window.fetch = async function (...args) {
@@ -63,7 +78,7 @@
             if (url && (url.includes('/graphql/') || url.includes('/i/api/'))) {
                 const clone = resp.clone();
                 clone.json().then(json => {
-                    try { extractUsers(json); } catch {}
+                    try { extractUsers(json, 0); } catch (e) { console.warn('[FollowerCount] fetch parse error:', e); }
                 }).catch(() => {});
             }
         } catch {}
@@ -81,7 +96,7 @@
             this.addEventListener('load', function () {
                 try {
                     const json = JSON.parse(this.responseText);
-                    extractUsers(json);
+                    extractUsers(json, 0);
                 } catch {}
             });
         }
@@ -118,20 +133,30 @@
         for (const article of articles) {
             if (article.hasAttribute(BADGE_ATTR)) continue;
 
-            // Find the handle using the User-Name test ID container
-            const userNameContainer = article.querySelector('[data-testid="User-Name"]');
-            if (!userNameContainer) continue;
-
-            // Look for the @handle text within the container
+            // Find the handle using multiple strategies
             let handle = null;
-            const spans = userNameContainer.querySelectorAll('span');
-            for (const span of spans) {
-                const text = span.textContent.trim();
-                if (text.startsWith('@') && span.children.length === 0) {
-                    handle = text.slice(1).toLowerCase();
-                    break;
+
+            // Strategy 1: Find @handle text in User-Name container
+            const userNameContainer = article.querySelector('[data-testid="User-Name"]');
+            if (userNameContainer) {
+                const spans = userNameContainer.querySelectorAll('span');
+                for (const span of spans) {
+                    const text = span.textContent.trim();
+                    if (text.startsWith('@') && span.children.length === 0) {
+                        handle = text.slice(1).toLowerCase();
+                        break;
+                    }
                 }
             }
+
+            // Strategy 2: Extract from UserAvatar-Container-* data-testid
+            if (!handle) {
+                const avatar = article.querySelector('[data-testid^="UserAvatar-Container-"]');
+                if (avatar) {
+                    handle = avatar.getAttribute('data-testid').replace('UserAvatar-Container-', '').toLowerCase();
+                }
+            }
+
             if (!handle) continue;
 
             const count = followerCache.get(handle);
