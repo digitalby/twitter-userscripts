@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.6.4
+// @version      1.7.0
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -71,6 +71,7 @@
     // Dynamic GraphQL API fetch — discovers query ID from Twitter's own JS bundles
     const BEARER = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
     const fetchQueued = new Set();
+    const failedHandles = new Set();
     let fetchQueue = [];
     let fetchRunning = false;
     let queueGeneration = 0; // incremented on cancellation
@@ -238,6 +239,8 @@
             }
             if (!resp.ok) {
                 console.warn('[FollowerCount] API error for', screenName, resp.status);
+                failedHandles.add(screenName.toLowerCase());
+                scheduleReprocess();
                 return;
             }
             const json = await resp.json();
@@ -253,11 +256,15 @@
                 cacheUser(screenName, fc, bio || '');
             } else {
                 console.warn('[FollowerCount] Could not find followers_count for', screenName);
+                failedHandles.add(screenName.toLowerCase());
+                scheduleReprocess();
             }
             // Also run generic extraction for any other user data in the response
             extractUsers(json, 0);
         } catch (e) {
             console.warn('[FollowerCount] Fetch failed for', screenName, e);
+            failedHandles.add(screenName.toLowerCase());
+            scheduleReprocess();
         }
     }
 
@@ -429,25 +436,44 @@
     function processTweets() {
         const articles = document.querySelectorAll('article[data-testid="tweet"]');
         for (const article of articles) {
-            if (article.hasAttribute(BADGE_ATTR)) continue;
+            const prevState = article.getAttribute(BADGE_ATTR);
 
             const userNameContainer = article.querySelector('[data-testid="User-Name"]');
             let handle = findHandle(userNameContainer);
 
-            // Fallback: extract from UserAvatar-Container-* data-testid
             if (!handle) {
                 const avatar = article.querySelector('[data-testid^="UserAvatar-Container-"]');
                 if (avatar) {
                     handle = avatar.getAttribute('data-testid').replace('UserAvatar-Container-', '').toLowerCase();
                 }
             }
-
             if (!handle) continue;
 
             const cached = userCache.get(handle);
-            if (!cached) {
+            const failed = failedHandles.has(handle);
+
+            // Determine desired state
+            let state, badgeContent, bioText;
+            if (cached) {
+                state = 'loaded';
+                badgeContent = '<span class="tm-f-label">f</span>\u200a' + formatCount(cached.followers);
+                bioText = cached.bio;
+            } else if (failed) {
+                state = 'error';
+                badgeContent = '!';
+            } else {
+                state = 'loading';
+                badgeContent = '\u2026'; // …
                 queueUserFetch(handle);
-                continue;
+            }
+
+            // Skip if already in this state
+            if (prevState === state + ':' + handle) continue;
+
+            // Remove old badge/bio if upgrading state
+            if (prevState) {
+                article.querySelectorAll('.tm-follower-badge').forEach(el => el.remove());
+                article.querySelectorAll('.tm-bio-line').forEach(el => el.remove());
             }
 
             const timeEl = article.querySelector('time');
@@ -456,19 +482,17 @@
             const container = timeLink ? timeLink.parentElement : timeEl.parentElement;
             if (!container) continue;
 
-            article.setAttribute(BADGE_ATTR, handle);
+            article.setAttribute(BADGE_ATTR, state + ':' + handle);
 
-            // Follower count badge inline with timestamp
             const badge = document.createElement('span');
             badge.className = 'tm-follower-badge';
-            badge.innerHTML = '<span class="tm-f-label">f</span>\u200a' + formatCount(cached.followers);
+            badge.innerHTML = badgeContent;
             container.appendChild(badge);
 
-            // Bio line below the User-Name row
-            if (cached.bio && userNameContainer) {
+            if (state === 'loaded' && bioText && userNameContainer) {
                 const bioEl = document.createElement('div');
                 bioEl.className = 'tm-bio-line';
-                bioEl.textContent = cached.bio.replace(/\n/g, ' ');
+                bioEl.textContent = bioText.replace(/\n/g, ' ');
                 userNameContainer.parentElement.insertBefore(bioEl, userNameContainer.nextSibling);
             }
         }
@@ -477,9 +501,8 @@
     function processUserCells() {
         const cells = document.querySelectorAll('[data-testid="UserCell"]');
         for (const cell of cells) {
-            if (cell.hasAttribute(BADGE_ATTR)) continue;
+            const prevState = cell.getAttribute(BADGE_ATTR);
 
-            // Find @handle in the cell
             let handle = findHandle(cell);
             if (!handle) {
                 const avatar = cell.querySelector('[data-testid^="UserAvatar-Container-"]');
@@ -490,14 +513,29 @@
             if (!handle) continue;
 
             const cached = userCache.get(handle);
-            if (!cached) {
+            const failed = failedHandles.has(handle);
+
+            let state, badgeContent;
+            if (cached) {
+                state = 'loaded';
+                badgeContent = '<span class="tm-f-label">f</span>\u200a' + formatCount(cached.followers);
+            } else if (failed) {
+                state = 'error';
+                badgeContent = '!';
+            } else {
+                state = 'loading';
+                badgeContent = '\u2026';
                 queueUserFetch(handle);
-                continue;
             }
 
-            cell.setAttribute(BADGE_ATTR, handle);
+            if (prevState === state + ':' + handle) continue;
 
-            // Find the handle span to append the follower badge after it
+            if (prevState) {
+                cell.querySelectorAll('.tm-usercell-badge').forEach(el => el.remove());
+            }
+
+            cell.setAttribute(BADGE_ATTR, state + ':' + handle);
+
             const spans = cell.querySelectorAll('span');
             let handleSpan = null;
             for (const span of spans) {
@@ -510,7 +548,7 @@
             if (handleSpan) {
                 const badge = document.createElement('span');
                 badge.className = 'tm-usercell-badge';
-                badge.innerHTML = '<span class="tm-f-label">f</span>\u200a' + formatCount(cached.followers);
+                badge.innerHTML = badgeContent;
                 handleSpan.parentElement.appendChild(badge);
             }
         }
