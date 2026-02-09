@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.4
+// @version      1.0.5
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -37,7 +37,7 @@
         }, 100);
     }
 
-    // Direct API fetch for user profile data
+    // Direct API fetch for user profile data (REST v1.1 — stable, no rotating query IDs)
     const BEARER = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
     const fetchQueued = new Set();
     let fetchQueue = [];
@@ -46,6 +46,10 @@
     function getCsrfToken() {
         const match = document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/);
         return match ? match[1] : '';
+    }
+
+    function randomDelay(min, max) {
+        return min + Math.random() * (max - min);
     }
 
     function queueUserFetch(handle) {
@@ -61,29 +65,14 @@
         const handle = fetchQueue.shift();
         fetchUserByScreenName(handle).finally(() => {
             fetchRunning = false;
-            setTimeout(drainFetchQueue, 300);
+            const delay = randomDelay(200, 600);
+            setTimeout(drainFetchQueue, delay);
         });
     }
 
     async function fetchUserByScreenName(screenName) {
         try {
-            const variables = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
-            const features = JSON.stringify({
-                hidden_profile_subscriptions_enabled: true,
-                rweb_tipjar_consumption_enabled: true,
-                responsive_web_graphql_exclude_directive_enabled: true,
-                verified_phone_label_enabled: false,
-                subscriptions_verification_info_is_identity_verified_enabled: true,
-                subscriptions_verification_info_verified_since_enabled: true,
-                highlights_tweets_tab_ui_enabled: true,
-                responsive_web_twitter_article_notes_tab_enabled: true,
-                subscriptions_feature_can_gift_premium: true,
-                creator_subscriptions_tweet_preview_api_enabled: true,
-                responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-                responsive_web_graphql_timeline_navigation_enabled: true
-            });
-            const params = new URLSearchParams({ variables, features, fieldToggles: '{}' });
-            const url = `https://x.com/i/api/graphql/xc8f1g7BYqr6VTzTbvNlGw/UserByScreenName?${params}`;
+            const url = `https://x.com/i/api/1.1/users/show.json?screen_name=${encodeURIComponent(screenName)}`;
 
             const resp = await origFetch(url, {
                 headers: {
@@ -91,7 +80,6 @@
                     'x-csrf-token': getCsrfToken(),
                     'x-twitter-active-user': 'yes',
                     'x-twitter-auth-type': 'OAuth2Session',
-                    'content-type': 'application/json',
                 },
                 credentials: 'include',
             });
@@ -100,7 +88,9 @@
                 return;
             }
             const json = await resp.json();
-            extractUsers(json, 0);
+            if (typeof json.followers_count === 'number' && json.screen_name) {
+                cacheUser(json.screen_name, json.followers_count);
+            }
         } catch (e) {
             console.warn('[FollowerCount] Fetch failed for', screenName, e);
         }
