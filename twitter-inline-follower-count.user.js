@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.2
+// @version      1.0.4
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -37,44 +37,73 @@
         }, 100);
     }
 
-    // Auto-hover simulation to trigger Twitter's profile card fetch
-    const hoverQueued = new Set();
-    let hoverQueue = [];
-    let hoverRunning = false;
+    // Direct API fetch for user profile data
+    const BEARER = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
+    const fetchQueued = new Set();
+    let fetchQueue = [];
+    let fetchRunning = false;
 
-    function queueHover(handle, linkEl) {
-        if (hoverQueued.has(handle)) return;
-        hoverQueued.add(handle);
-        hoverQueue.push({ handle, linkEl });
-        drainHoverQueue();
+    function getCsrfToken() {
+        const match = document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/);
+        return match ? match[1] : '';
     }
 
-    function drainHoverQueue() {
-        if (hoverRunning || hoverQueue.length === 0) return;
-        hoverRunning = true;
-        const { handle, linkEl } = hoverQueue.shift();
-        simulateHover(linkEl).then(() => {
-            hoverRunning = false;
-            // Small delay between hovers to avoid rate limiting
-            setTimeout(drainHoverQueue, 200);
+    function queueUserFetch(handle) {
+        if (fetchQueued.has(handle)) return;
+        fetchQueued.add(handle);
+        fetchQueue.push(handle);
+        drainFetchQueue();
+    }
+
+    function drainFetchQueue() {
+        if (fetchRunning || fetchQueue.length === 0) return;
+        fetchRunning = true;
+        const handle = fetchQueue.shift();
+        fetchUserByScreenName(handle).finally(() => {
+            fetchRunning = false;
+            setTimeout(drainFetchQueue, 300);
         });
     }
 
-    function simulateHover(el) {
-        return new Promise(resolve => {
-            const rect = el.getBoundingClientRect();
-            const opts = { bubbles: true, clientX: rect.left + 5, clientY: rect.top + 5 };
-            el.dispatchEvent(new PointerEvent('pointerenter', { ...opts, bubbles: false }));
-            el.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false }));
-            el.dispatchEvent(new MouseEvent('mouseover', opts));
-            // Dismiss after a short delay — long enough for Twitter to fire the request
-            setTimeout(() => {
-                el.dispatchEvent(new PointerEvent('pointerleave', { ...opts, bubbles: false }));
-                el.dispatchEvent(new MouseEvent('mouseleave', { ...opts, bubbles: false }));
-                el.dispatchEvent(new MouseEvent('mouseout', opts));
-                resolve();
-            }, 300);
-        });
+    async function fetchUserByScreenName(screenName) {
+        try {
+            const variables = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
+            const features = JSON.stringify({
+                hidden_profile_subscriptions_enabled: true,
+                rweb_tipjar_consumption_enabled: true,
+                responsive_web_graphql_exclude_directive_enabled: true,
+                verified_phone_label_enabled: false,
+                subscriptions_verification_info_is_identity_verified_enabled: true,
+                subscriptions_verification_info_verified_since_enabled: true,
+                highlights_tweets_tab_ui_enabled: true,
+                responsive_web_twitter_article_notes_tab_enabled: true,
+                subscriptions_feature_can_gift_premium: true,
+                creator_subscriptions_tweet_preview_api_enabled: true,
+                responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+                responsive_web_graphql_timeline_navigation_enabled: true
+            });
+            const params = new URLSearchParams({ variables, features, fieldToggles: '{}' });
+            const url = `https://x.com/i/api/graphql/xc8f1g7BYqr6VTzTbvNlGw/UserByScreenName?${params}`;
+
+            const resp = await origFetch(url, {
+                headers: {
+                    'authorization': `Bearer ${decodeURIComponent(BEARER)}`,
+                    'x-csrf-token': getCsrfToken(),
+                    'x-twitter-active-user': 'yes',
+                    'x-twitter-auth-type': 'OAuth2Session',
+                    'content-type': 'application/json',
+                },
+                credentials: 'include',
+            });
+            if (!resp.ok) {
+                console.warn('[FollowerCount] API error for', screenName, resp.status);
+                return;
+            }
+            const json = await resp.json();
+            extractUsers(json, 0);
+        } catch (e) {
+            console.warn('[FollowerCount] Fetch failed for', screenName, e);
+        }
     }
 
     function cacheUser(screenName, followersCount) {
@@ -201,11 +230,7 @@
 
             const count = followerCache.get(handle);
             if (count === undefined) {
-                // Trigger hover card fetch to get follower data
-                const nameLink = userNameContainer
-                    ? userNameContainer.querySelector('a[role="link"]')
-                    : null;
-                if (nameLink) queueHover(handle, nameLink);
+                queueUserFetch(handle);
                 continue;
             }
 
