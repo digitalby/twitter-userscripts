@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.6
+// @version      1.0.7
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -55,22 +55,51 @@
     }
 
     // Discover the UserByScreenName query ID from Twitter's loaded JS chunks
+    const QUERY_ID_PATTERNS = [
+        /queryId:"([^"]+)",operationName:"UserByScreenName"/,
+        /operationName:"UserByScreenName",queryId:"([^"]+)"/,
+        /queryId:"([^"]+)"[^}]{0,100}operationName:"UserByScreenName"/,
+        /operationName:"UserByScreenName"[^}]{0,100}queryId:"([^"]+)"/,
+    ];
+
     async function discoverQueryId() {
         if (discoveredQueryId) return discoveredQueryId;
+        console.log('[FollowerCount] Starting query ID discovery...');
         const scripts = document.querySelectorAll('script[src]');
+        console.log('[FollowerCount] Found', scripts.length, 'script tags to scan');
+        let scanned = 0, failed = 0;
         for (const script of scripts) {
             try {
                 const resp = await origFetch(script.src);
+                if (!resp.ok) { failed++; continue; }
                 const text = await resp.text();
-                const match = text.match(/queryId:"([^"]+)",operationName:"UserByScreenName"/);
-                if (match) {
-                    discoveredQueryId = match[1];
-                    console.log('[FollowerCount] Discovered UserByScreenName queryId:', discoveredQueryId);
-                    return discoveredQueryId;
+                scanned++;
+                for (const pattern of QUERY_ID_PATTERNS) {
+                    const match = text.match(pattern);
+                    if (match) {
+                        discoveredQueryId = match[1];
+                        console.log('[FollowerCount] Discovered queryId:', discoveredQueryId, 'from', script.src);
+                        return discoveredQueryId;
+                    }
                 }
-            } catch {}
+            } catch (e) {
+                failed++;
+                console.debug('[FollowerCount] Failed to fetch script:', script.src, e.message);
+            }
         }
-        console.warn('[FollowerCount] Could not discover UserByScreenName queryId');
+        console.warn('[FollowerCount] Query ID not found. Scanned:', scanned, 'Failed:', failed);
+        return null;
+    }
+
+    // Retry discovery with delay (scripts may load late)
+    async function discoverQueryIdWithRetry() {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const id = await discoverQueryId();
+            if (id) return id;
+            console.log('[FollowerCount] Discovery attempt', attempt + 1, 'failed, retrying in', (attempt + 1) * 2, 's...');
+            await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+            discoveryPromise = null; // allow re-run
+        }
         return null;
     }
 
@@ -94,12 +123,15 @@
 
     async function fetchUserByScreenName(screenName) {
         try {
-            // Ensure we have the query ID (shared single discovery)
+            // Ensure we have the query ID (shared single discovery with retry)
             if (!discoveredQueryId) {
-                if (!discoveryPromise) discoveryPromise = discoverQueryId();
+                if (!discoveryPromise) discoveryPromise = discoverQueryIdWithRetry();
                 await discoveryPromise;
             }
-            if (!discoveredQueryId) return;
+            if (!discoveredQueryId) {
+                console.warn('[FollowerCount] No queryId available, skipping fetch for', screenName);
+                return;
+            }
 
             const variables = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
             const features = JSON.stringify({
