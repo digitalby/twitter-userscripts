@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.5.0
+// @version      1.6.0
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -64,7 +64,7 @@
         if (reprocessTimer) return;
         reprocessTimer = setTimeout(() => {
             reprocessTimer = null;
-            processTweets();
+            processAll();
         }, 100);
     }
 
@@ -397,35 +397,41 @@
                 max-width: 100%;
                 padding: 0 0 2px 0;
             }
+            .tm-usercell-badge {
+                color: rgb(113, 118, 123);
+                font-size: 13px;
+                font-weight: 400;
+                white-space: nowrap;
+            }
+            .tm-usercell-badge::before {
+                content: " · ";
+            }
         `;
         (document.head || document.documentElement).appendChild(style);
     }
 
+    // Extract @handle from an element's descendant spans
+    function findHandle(container) {
+        if (!container) return null;
+        const spans = container.querySelectorAll('span');
+        for (const span of spans) {
+            const text = span.textContent.trim();
+            if (text.startsWith('@') && span.children.length === 0) {
+                return text.slice(1).toLowerCase();
+            }
+        }
+        return null;
+    }
+
     function processTweets() {
-        injectStyles();
-        // Cancel any in-flight queue — we'll rebuild from currently visible tweets
-        cancelQueue();
         const articles = document.querySelectorAll('article[data-testid="tweet"]');
         for (const article of articles) {
             if (article.hasAttribute(BADGE_ATTR)) continue;
 
-            // Find the handle using multiple strategies
-            let handle = null;
-
-            // Strategy 1: Find @handle text in User-Name container
             const userNameContainer = article.querySelector('[data-testid="User-Name"]');
-            if (userNameContainer) {
-                const spans = userNameContainer.querySelectorAll('span');
-                for (const span of spans) {
-                    const text = span.textContent.trim();
-                    if (text.startsWith('@') && span.children.length === 0) {
-                        handle = text.slice(1).toLowerCase();
-                        break;
-                    }
-                }
-            }
+            let handle = findHandle(userNameContainer);
 
-            // Strategy 2: Extract from UserAvatar-Container-* data-testid
+            // Fallback: extract from UserAvatar-Container-* data-testid
             if (!handle) {
                 const avatar = article.querySelector('[data-testid^="UserAvatar-Container-"]');
                 if (avatar) {
@@ -465,9 +471,58 @@
         }
     }
 
-    function startObserver() {
+    function processUserCells() {
+        const cells = document.querySelectorAll('[data-testid="UserCell"]');
+        for (const cell of cells) {
+            if (cell.hasAttribute(BADGE_ATTR)) continue;
+
+            // Find @handle in the cell
+            let handle = findHandle(cell);
+            if (!handle) {
+                const avatar = cell.querySelector('[data-testid^="UserAvatar-Container-"]');
+                if (avatar) {
+                    handle = avatar.getAttribute('data-testid').replace('UserAvatar-Container-', '').toLowerCase();
+                }
+            }
+            if (!handle) continue;
+
+            const cached = userCache.get(handle);
+            if (!cached) {
+                queueUserFetch(handle);
+                continue;
+            }
+
+            cell.setAttribute(BADGE_ATTR, handle);
+
+            // Find the handle span to append the follower badge after it
+            const spans = cell.querySelectorAll('span');
+            let handleSpan = null;
+            for (const span of spans) {
+                if (span.textContent.trim().toLowerCase() === '@' + handle && span.children.length === 0) {
+                    handleSpan = span;
+                    break;
+                }
+            }
+
+            if (handleSpan) {
+                const badge = document.createElement('span');
+                badge.className = 'tm-usercell-badge';
+                badge.textContent = formatCount(cached.followers) + 'f';
+                handleSpan.parentElement.appendChild(badge);
+            }
+        }
+    }
+
+    function processAll() {
+        injectStyles();
+        cancelQueue();
         processTweets();
-        const observer = new MutationObserver(() => processTweets());
+        processUserCells();
+    }
+
+    function startObserver() {
+        processAll();
+        const observer = new MutationObserver(() => processAll());
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
