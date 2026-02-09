@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.1
+// @version      1.0.2
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -35,6 +35,46 @@
             reprocessTimer = null;
             processTweets();
         }, 100);
+    }
+
+    // Auto-hover simulation to trigger Twitter's profile card fetch
+    const hoverQueued = new Set();
+    let hoverQueue = [];
+    let hoverRunning = false;
+
+    function queueHover(handle, linkEl) {
+        if (hoverQueued.has(handle)) return;
+        hoverQueued.add(handle);
+        hoverQueue.push({ handle, linkEl });
+        drainHoverQueue();
+    }
+
+    function drainHoverQueue() {
+        if (hoverRunning || hoverQueue.length === 0) return;
+        hoverRunning = true;
+        const { handle, linkEl } = hoverQueue.shift();
+        simulateHover(linkEl).then(() => {
+            hoverRunning = false;
+            // Small delay between hovers to avoid rate limiting
+            setTimeout(drainHoverQueue, 200);
+        });
+    }
+
+    function simulateHover(el) {
+        return new Promise(resolve => {
+            const rect = el.getBoundingClientRect();
+            const opts = { bubbles: true, clientX: rect.left + 5, clientY: rect.top + 5 };
+            el.dispatchEvent(new PointerEvent('pointerenter', { ...opts, bubbles: false }));
+            el.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false }));
+            el.dispatchEvent(new MouseEvent('mouseover', opts));
+            // Dismiss after a short delay — long enough for Twitter to fire the request
+            setTimeout(() => {
+                el.dispatchEvent(new PointerEvent('pointerleave', { ...opts, bubbles: false }));
+                el.dispatchEvent(new MouseEvent('mouseleave', { ...opts, bubbles: false }));
+                el.dispatchEvent(new MouseEvent('mouseout', opts));
+                resolve();
+            }, 300);
+        });
     }
 
     function cacheUser(screenName, followersCount) {
@@ -160,7 +200,14 @@
             if (!handle) continue;
 
             const count = followerCache.get(handle);
-            if (count === undefined) continue;
+            if (count === undefined) {
+                // Trigger hover card fetch to get follower data
+                const nameLink = userNameContainer
+                    ? userNameContainer.querySelector('a[role="link"]')
+                    : null;
+                if (nameLink) queueHover(handle, nameLink);
+                continue;
+            }
 
             const timeEl = article.querySelector('time');
             if (!timeEl) continue;
