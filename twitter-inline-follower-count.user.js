@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.9
+// @version      1.1.0
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -119,21 +119,26 @@
         if (fetchQueued.has(handle)) return;
         fetchQueued.add(handle);
         fetchQueue.push(handle);
+        console.log('[FollowerCount] Queued fetch for', handle, '(queue size:', fetchQueue.length, ')');
         drainFetchQueue();
     }
 
     function drainFetchQueue() {
-        if (fetchRunning || fetchQueue.length === 0) return;
+        if (fetchRunning) { console.log('[FollowerCount] drainFetchQueue: busy, skipping'); return; }
+        if (fetchQueue.length === 0) return;
         fetchRunning = true;
         const handle = fetchQueue.shift();
+        console.log('[FollowerCount] drainFetchQueue: processing', handle, '(remaining:', fetchQueue.length, ')');
         fetchUserByScreenName(handle).finally(() => {
             fetchRunning = false;
             const delay = randomDelay(200, 600);
+            console.log('[FollowerCount] drainFetchQueue: done with', handle, ', next in', Math.round(delay), 'ms');
             setTimeout(drainFetchQueue, delay);
         });
     }
 
     async function fetchUserByScreenName(screenName) {
+        console.log('[FollowerCount] fetchUserByScreenName called for', screenName);
         try {
             // Ensure we have the query ID (shared single discovery with retry)
             if (!discoveredQueryId) {
@@ -156,21 +161,24 @@
             const params = new URLSearchParams({ variables, features: capturedFeatures, fieldToggles: '{}' });
             const url = `https://x.com/i/api/graphql/${discoveredQueryId}/UserByScreenName?${params}`;
 
+            console.log('[FollowerCount] Fetching', screenName, '...');
             const resp = await origFetch(url, {
                 headers: {
                     'authorization': `Bearer ${decodeURIComponent(BEARER)}`,
                     'x-csrf-token': getCsrfToken(),
                     'x-twitter-active-user': 'yes',
                     'x-twitter-auth-type': 'OAuth2Session',
-                    'content-type': 'application/json',
                 },
                 credentials: 'include',
             });
+            console.log('[FollowerCount] Response for', screenName, ':', resp.status);
             if (!resp.ok) {
-                console.warn('[FollowerCount] API error for', screenName, resp.status);
+                const text = await resp.text();
+                console.warn('[FollowerCount] API error for', screenName, resp.status, text.substring(0, 200));
                 return;
             }
             const json = await resp.json();
+            console.log('[FollowerCount] Got data for', screenName, JSON.stringify(json).substring(0, 200));
             extractUsers(json, 0);
         } catch (e) {
             console.warn('[FollowerCount] Fetch failed for', screenName, e);
