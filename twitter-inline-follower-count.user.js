@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.3.0
+// @version      1.4.0
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -14,8 +14,13 @@
     'use strict';
 
     const CACHE_KEY = 'tm-follower-cache';
-    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+    const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
+    const RATE_MAX = 40; // max requests per window
+    const RATE_PAUSE = 15 * 60 * 1000; // pause duration on 429
     const userCache = new Map(); // handle -> { followers, bio, ts }
+    let requestTimestamps = []; // timestamps of recent API calls
+    let ratePausedUntil = 0; // if > Date.now(), we're paused
 
     // Load persisted cache from localStorage
     try {
@@ -151,13 +156,30 @@
         drainFetchQueue();
     }
 
+    function isRateLimited() {
+        const now = Date.now();
+        if (now < ratePausedUntil) return true;
+        // Prune old timestamps outside the window
+        requestTimestamps = requestTimestamps.filter(t => (now - t) < RATE_WINDOW);
+        return requestTimestamps.length >= RATE_MAX;
+    }
+
     function drainFetchQueue() {
         if (fetchRunning || fetchQueue.length === 0) return;
+        if (isRateLimited()) {
+            const retryIn = ratePausedUntil > Date.now()
+                ? ratePausedUntil - Date.now()
+                : 30000; // check again in 30s if window-limited
+            console.log('[FollowerCount] Rate limited, retrying in', Math.round(retryIn / 1000), 's (' + fetchQueue.length, 'queued)');
+            setTimeout(drainFetchQueue, retryIn);
+            return;
+        }
         fetchRunning = true;
         const handle = fetchQueue.shift();
+        requestTimestamps.push(Date.now());
         fetchUserByScreenName(handle).finally(() => {
             fetchRunning = false;
-            const delay = randomDelay(200, 600);
+            const delay = randomDelay(1000, 3000);
             setTimeout(drainFetchQueue, delay);
         });
     }
@@ -194,6 +216,13 @@
                 },
                 credentials: 'include',
             });
+            if (resp.status === 429) {
+                ratePausedUntil = Date.now() + RATE_PAUSE;
+                console.warn('[FollowerCount] Rate limited (429)! Pausing for 15 minutes.');
+                fetchQueued.delete(screenName.toLowerCase()); // allow retry later
+                fetchQueue.unshift(screenName); // put it back at the front
+                return;
+            }
             if (!resp.ok) {
                 console.warn('[FollowerCount] API error for', screenName, resp.status);
                 return;
