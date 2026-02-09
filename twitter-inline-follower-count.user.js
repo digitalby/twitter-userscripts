@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.1.2
+// @version      1.2.0
 // @author       digitalby
-// @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
+// @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
 // @match        https://x.com/*
 // @grant        none
@@ -13,7 +13,7 @@
 (function () {
     'use strict';
 
-    const followerCache = new Map();
+    const userCache = new Map(); // handle -> { followers, bio }
 
     function formatCount(n) {
         if (n >= 1e6) {
@@ -170,13 +170,16 @@
                 return;
             }
             const json = await resp.json();
-            // Direct extraction — we already know the screenName, just find followers_count
+            // Direct extraction — we already know the screenName, just find followers_count + bio
             const result = json?.data?.user?.result;
             const fc = result?.legacy?.followers_count
                 ?? result?.followers_count
                 ?? findFollowersCount(result);
+            const bio = result?.legacy?.description
+                ?? result?.profile_bio?.description
+                ?? findStringField(result, 'description');
             if (typeof fc === 'number') {
-                cacheUser(screenName, fc);
+                cacheUser(screenName, fc, bio || '');
             } else {
                 console.warn('[FollowerCount] Could not find followers_count for', screenName);
             }
@@ -201,11 +204,26 @@
         return null;
     }
 
-    function cacheUser(screenName, followersCount) {
+    // Deep search for a string field by name
+    function findStringField(obj, fieldName, depth = 0) {
+        if (!obj || typeof obj !== 'object' || depth > 10) return null;
+        if (typeof obj[fieldName] === 'string' && obj[fieldName].length > 0) return obj[fieldName];
+        for (const key of Object.keys(obj)) {
+            const val = obj[key];
+            if (val && typeof val === 'object' && !Array.isArray(val)) {
+                const found = findStringField(val, fieldName, depth + 1);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    function cacheUser(screenName, followersCount, bio) {
         const handle = screenName.toLowerCase();
-        const prev = followerCache.get(handle);
-        followerCache.set(handle, followersCount);
-        if (prev === undefined) {
+        const prev = userCache.get(handle);
+        const entry = { followers: followersCount, bio: bio ?? prev?.bio ?? '' };
+        userCache.set(handle, entry);
+        if (!prev) {
             console.log('[FollowerCount] Cached:', handle, formatCount(followersCount));
             scheduleReprocess();
         }
@@ -295,6 +313,17 @@
                 content: "·";
                 margin: 0 4px;
             }
+            .tm-bio-line {
+                color: rgb(113, 118, 123);
+                font-size: 13px;
+                font-weight: 400;
+                line-height: 16px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 100%;
+                padding: 0 0 2px 0;
+            }
         `;
         (document.head || document.documentElement).appendChild(style);
     }
@@ -331,8 +360,8 @@
 
             if (!handle) continue;
 
-            const count = followerCache.get(handle);
-            if (count === undefined) {
+            const cached = userCache.get(handle);
+            if (!cached) {
                 queueUserFetch(handle);
                 continue;
             }
@@ -345,10 +374,19 @@
 
             article.setAttribute(BADGE_ATTR, handle);
 
+            // Follower count badge inline with timestamp
             const badge = document.createElement('span');
             badge.className = 'tm-follower-badge';
-            badge.textContent = formatCount(count) + 'f';
+            badge.textContent = formatCount(cached.followers) + 'f';
             container.appendChild(badge);
+
+            // Bio line below the User-Name row
+            if (cached.bio && userNameContainer) {
+                const bioEl = document.createElement('div');
+                bioEl.className = 'tm-bio-line';
+                bioEl.textContent = cached.bio.replace(/\n/g, ' ');
+                userNameContainer.parentElement.insertBefore(bioEl, userNameContainer.nextSibling);
+            }
         }
     }
 
