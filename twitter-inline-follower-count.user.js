@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.1.1
+// @version      1.1.2
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -119,26 +119,21 @@
         if (fetchQueued.has(handle)) return;
         fetchQueued.add(handle);
         fetchQueue.push(handle);
-        console.log('[FollowerCount] Queued fetch for', handle, '(queue size:', fetchQueue.length, ')');
         drainFetchQueue();
     }
 
     function drainFetchQueue() {
-        if (fetchRunning) { console.log('[FollowerCount] drainFetchQueue: busy, skipping'); return; }
-        if (fetchQueue.length === 0) return;
+        if (fetchRunning || fetchQueue.length === 0) return;
         fetchRunning = true;
         const handle = fetchQueue.shift();
-        console.log('[FollowerCount] drainFetchQueue: processing', handle, '(remaining:', fetchQueue.length, ')');
         fetchUserByScreenName(handle).finally(() => {
             fetchRunning = false;
             const delay = randomDelay(200, 600);
-            console.log('[FollowerCount] drainFetchQueue: done with', handle, ', next in', Math.round(delay), 'ms');
             setTimeout(drainFetchQueue, delay);
         });
     }
 
     async function fetchUserByScreenName(screenName) {
-        console.log('[FollowerCount] fetchUserByScreenName called for', screenName);
         try {
             // Ensure we have the query ID (shared single discovery with retry)
             if (!discoveredQueryId) {
@@ -161,7 +156,6 @@
             const params = new URLSearchParams({ variables, features: capturedFeatures, fieldToggles: '{}' });
             const url = `https://x.com/i/api/graphql/${discoveredQueryId}/UserByScreenName?${params}`;
 
-            console.log('[FollowerCount] Fetching', screenName, '...');
             const resp = await origFetch(url, {
                 headers: {
                     'authorization': `Bearer ${decodeURIComponent(BEARER)}`,
@@ -171,28 +165,40 @@
                 },
                 credentials: 'include',
             });
-            console.log('[FollowerCount] Response for', screenName, ':', resp.status);
             if (!resp.ok) {
-                const text = await resp.text();
-                console.warn('[FollowerCount] API error for', screenName, resp.status, text.substring(0, 200));
+                console.warn('[FollowerCount] API error for', screenName, resp.status);
                 return;
             }
             const json = await resp.json();
-            const jsonStr = JSON.stringify(json);
-            const hasFollowers = jsonStr.includes('followers_count');
-            const hasLegacy = jsonStr.includes('"legacy"');
-            const resultKeys = Object.keys(json?.data?.user?.result || {}).join(', ');
-            console.log('[FollowerCount] Got data for', screenName,
-                '| hasLegacy:', hasLegacy, '| hasFollowers:', hasFollowers,
-                '| resultKeys:', resultKeys);
-            if (!hasFollowers) {
-                // Log more of the response to find where follower data lives
-                console.log('[FollowerCount] Full result keys for', screenName, ':', jsonStr.substring(0, 500));
+            // Direct extraction — we already know the screenName, just find followers_count
+            const result = json?.data?.user?.result;
+            const fc = result?.legacy?.followers_count
+                ?? result?.followers_count
+                ?? findFollowersCount(result);
+            if (typeof fc === 'number') {
+                cacheUser(screenName, fc);
+            } else {
+                console.warn('[FollowerCount] Could not find followers_count for', screenName);
             }
+            // Also run generic extraction for any other user data in the response
             extractUsers(json, 0);
         } catch (e) {
             console.warn('[FollowerCount] Fetch failed for', screenName, e);
         }
+    }
+
+    // Deep search for followers_count in an object
+    function findFollowersCount(obj, depth = 0) {
+        if (!obj || typeof obj !== 'object' || depth > 20) return null;
+        if (typeof obj.followers_count === 'number') return obj.followers_count;
+        for (const key of Object.keys(obj)) {
+            const val = obj[key];
+            if (val && typeof val === 'object') {
+                const found = findFollowersCount(val, depth + 1);
+                if (found !== null) return found;
+            }
+        }
+        return null;
     }
 
     function cacheUser(screenName, followersCount) {
