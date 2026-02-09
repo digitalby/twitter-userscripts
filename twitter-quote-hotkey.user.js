@@ -12,6 +12,20 @@
 (function () {
     'use strict';
 
+    // Track chord prefixes (e.g. g+p = go to profile)
+    const CHORD_PREFIXES = ['g'];
+    const CHORD_TIMEOUT = 1000;
+    let chordPending = false;
+    let chordTimer = null;
+
+    document.addEventListener('keydown', function (e) {
+        if (CHORD_PREFIXES.includes(e.key)) {
+            chordPending = true;
+            clearTimeout(chordTimer);
+            chordTimer = setTimeout(() => { chordPending = false; }, CHORD_TIMEOUT);
+        }
+    }, true);
+
     function isTyping() {
         const el = document.activeElement;
         if (!el) return false;
@@ -60,6 +74,7 @@
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
         if (e.key === 'p') {
+            if (chordPending) { chordPending = false; return; }
             e.preventDefault();
             e.stopPropagation();
             openQuoteTweet();
