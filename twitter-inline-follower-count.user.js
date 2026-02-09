@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.1.0
+// @version      1.1.1
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -178,7 +178,17 @@
                 return;
             }
             const json = await resp.json();
-            console.log('[FollowerCount] Got data for', screenName, JSON.stringify(json).substring(0, 200));
+            const jsonStr = JSON.stringify(json);
+            const hasFollowers = jsonStr.includes('followers_count');
+            const hasLegacy = jsonStr.includes('"legacy"');
+            const resultKeys = Object.keys(json?.data?.user?.result || {}).join(', ');
+            console.log('[FollowerCount] Got data for', screenName,
+                '| hasLegacy:', hasLegacy, '| hasFollowers:', hasFollowers,
+                '| resultKeys:', resultKeys);
+            if (!hasFollowers) {
+                // Log more of the response to find where follower data lives
+                console.log('[FollowerCount] Full result keys for', screenName, ':', jsonStr.substring(0, 500));
+            }
             extractUsers(json, 0);
         } catch (e) {
             console.warn('[FollowerCount] Fetch failed for', screenName, e);
