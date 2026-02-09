@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.5
+// @version      1.0.6
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -37,11 +37,13 @@
         }, 100);
     }
 
-    // Direct API fetch for user profile data (REST v1.1 — stable, no rotating query IDs)
+    // Dynamic GraphQL API fetch — discovers query ID from Twitter's own JS bundles
     const BEARER = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
     const fetchQueued = new Set();
     let fetchQueue = [];
     let fetchRunning = false;
+    let discoveredQueryId = null;
+    let discoveryPromise = null;
 
     function getCsrfToken() {
         const match = document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/);
@@ -50,6 +52,26 @@
 
     function randomDelay(min, max) {
         return min + Math.random() * (max - min);
+    }
+
+    // Discover the UserByScreenName query ID from Twitter's loaded JS chunks
+    async function discoverQueryId() {
+        if (discoveredQueryId) return discoveredQueryId;
+        const scripts = document.querySelectorAll('script[src]');
+        for (const script of scripts) {
+            try {
+                const resp = await origFetch(script.src);
+                const text = await resp.text();
+                const match = text.match(/queryId:"([^"]+)",operationName:"UserByScreenName"/);
+                if (match) {
+                    discoveredQueryId = match[1];
+                    console.log('[FollowerCount] Discovered UserByScreenName queryId:', discoveredQueryId);
+                    return discoveredQueryId;
+                }
+            } catch {}
+        }
+        console.warn('[FollowerCount] Could not discover UserByScreenName queryId');
+        return null;
     }
 
     function queueUserFetch(handle) {
@@ -72,7 +94,30 @@
 
     async function fetchUserByScreenName(screenName) {
         try {
-            const url = `https://x.com/i/api/1.1/users/show.json?screen_name=${encodeURIComponent(screenName)}`;
+            // Ensure we have the query ID (shared single discovery)
+            if (!discoveredQueryId) {
+                if (!discoveryPromise) discoveryPromise = discoverQueryId();
+                await discoveryPromise;
+            }
+            if (!discoveredQueryId) return;
+
+            const variables = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
+            const features = JSON.stringify({
+                hidden_profile_subscriptions_enabled: true,
+                rweb_tipjar_consumption_enabled: true,
+                responsive_web_graphql_exclude_directive_enabled: true,
+                verified_phone_label_enabled: false,
+                subscriptions_verification_info_is_identity_verified_enabled: true,
+                subscriptions_verification_info_verified_since_enabled: true,
+                highlights_tweets_tab_ui_enabled: true,
+                responsive_web_twitter_article_notes_tab_enabled: true,
+                subscriptions_feature_can_gift_premium: true,
+                creator_subscriptions_tweet_preview_api_enabled: true,
+                responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+                responsive_web_graphql_timeline_navigation_enabled: true,
+            });
+            const params = new URLSearchParams({ variables, features, fieldToggles: '{}' });
+            const url = `https://x.com/i/api/graphql/${discoveredQueryId}/UserByScreenName?${params}`;
 
             const resp = await origFetch(url, {
                 headers: {
@@ -80,6 +125,7 @@
                     'x-csrf-token': getCsrfToken(),
                     'x-twitter-active-user': 'yes',
                     'x-twitter-auth-type': 'OAuth2Session',
+                    'content-type': 'application/json',
                 },
                 credentials: 'include',
             });
@@ -88,9 +134,7 @@
                 return;
             }
             const json = await resp.json();
-            if (typeof json.followers_count === 'number' && json.screen_name) {
-                cacheUser(json.screen_name, json.followers_count);
-            }
+            extractUsers(json, 0);
         } catch (e) {
             console.warn('[FollowerCount] Fetch failed for', screenName, e);
         }
@@ -134,6 +178,14 @@
         const resp = await origFetch.apply(this, args);
         try {
             const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
+            if (url && url.includes('/graphql/')) {
+                // Capture query IDs from Twitter's own requests
+                const qidMatch = url.match(/\/graphql\/([^/?]+)\/UserByScreenName/);
+                if (qidMatch && !discoveredQueryId) {
+                    discoveredQueryId = qidMatch[1];
+                    console.log('[FollowerCount] Captured UserByScreenName queryId from traffic:', discoveredQueryId);
+                }
+            }
             if (url && (url.includes('/graphql/') || url.includes('/i/api/'))) {
                 const clone = resp.clone();
                 clone.json().then(json => {
