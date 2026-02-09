@@ -16,7 +16,7 @@
     const CACHE_KEY = 'tm-follower-cache';
     const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
     const RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
-    const RATE_MAX = 40; // max requests per window
+    const RATE_MAX = 1000; // max requests per window
     const RATE_PAUSE = 15 * 60 * 1000; // pause duration on 429
     const userCache = new Map(); // handle -> { followers, bio, ts }
     let requestTimestamps = []; // timestamps of recent API calls
