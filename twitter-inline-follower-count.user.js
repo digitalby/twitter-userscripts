@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.2.0
+// @version      1.3.0
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -13,7 +13,33 @@
 (function () {
     'use strict';
 
-    const userCache = new Map(); // handle -> { followers, bio }
+    const CACHE_KEY = 'tm-follower-cache';
+    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+    const userCache = new Map(); // handle -> { followers, bio, ts }
+
+    // Load persisted cache from localStorage
+    try {
+        const stored = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+        const now = Date.now();
+        for (const [handle, entry] of Object.entries(stored)) {
+            if (entry.ts && (now - entry.ts) < CACHE_TTL) {
+                userCache.set(handle, entry);
+            }
+        }
+        console.log('[FollowerCount] Loaded', userCache.size, 'cached users from localStorage');
+    } catch {}
+
+    let saveTimer = null;
+    function persistCache() {
+        if (saveTimer) return;
+        saveTimer = setTimeout(() => {
+            saveTimer = null;
+            try {
+                const obj = Object.fromEntries(userCache);
+                localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
+            } catch {}
+        }, 1000);
+    }
 
     function formatCount(n) {
         if (n >= 1e6) {
@@ -117,6 +143,9 @@
 
     function queueUserFetch(handle) {
         if (fetchQueued.has(handle)) return;
+        // Skip if we already have a fresh cache entry
+        const cached = userCache.get(handle);
+        if (cached && cached.ts && (Date.now() - cached.ts) < CACHE_TTL) return;
         fetchQueued.add(handle);
         fetchQueue.push(handle);
         drainFetchQueue();
@@ -221,8 +250,9 @@
     function cacheUser(screenName, followersCount, bio) {
         const handle = screenName.toLowerCase();
         const prev = userCache.get(handle);
-        const entry = { followers: followersCount, bio: bio ?? prev?.bio ?? '' };
+        const entry = { followers: followersCount, bio: bio ?? prev?.bio ?? '', ts: Date.now() };
         userCache.set(handle, entry);
+        persistCache();
         if (!prev) {
             console.log('[FollowerCount] Cached:', handle, formatCount(followersCount));
             scheduleReprocess();
