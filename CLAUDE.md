@@ -1,7 +1,7 @@
 # Project Guidelines
 
 ## Version Bumping
-**ALWAYS bump the `@version` in the userscript header when modifying any `.user.js` file.** This is required for userscript managers (Tampermonkey etc.) to detect updates. Use semver: patch for fixes, minor for features.
+**ALWAYS bump the `@version` in the userscript header when modifying any `.user.js` file.** This is required for userscript managers (Tampermonkey etc.) to detect updates. Use major.minor.bug format: bump bug for fixes, minor for features, major for breaking changes.
 
 ## Userscript Conventions
 - All scripts are self-contained IIFEs with `'use strict'`

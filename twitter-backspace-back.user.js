@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Backspace to Go Back
 // @namespace    https://github.com/digitalby
-// @version      1.1
+// @version      1.0.1
 // @author       digitalby
 // @description  Press Backspace to navigate back on Twitter/X
 // @match        https://twitter.com/*
