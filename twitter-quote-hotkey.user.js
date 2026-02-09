@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Open Quote Tweet Hotkey
 // @namespace    https://github.com/digitalby
-// @version      1.0.0
+// @version      1.0.1
 // @author       digitalby
 // @description  Press p on a focused tweet to open its embedded quote tweet
 // @match        https://twitter.com/*
@@ -58,14 +58,23 @@
             return;
         }
 
-        // Strategy 2: Find a nested tweet link inside a card-like container
-        // Quote tweets are typically rendered as a bordered block with a link to /username/status/id
+        // Strategy 2: Find the tweet's own permalink, then look for a different /status/ link
+        // that isn't in the action bar area (views/analytics)
+        const timeLink = article.querySelector('time')?.closest('a[href*="/status/"]');
+        if (!timeLink) return;
+        const tweetHref = timeLink.getAttribute('href');
+
         const links = article.querySelectorAll('a[href*="/status/"]');
-        // The first /status/ link is usually the tweet's own permalink (timestamp).
-        // The second one, if present, is likely the quoted tweet.
-        if (links.length >= 2) {
-            links[1].click();
-            return;
+        for (const link of links) {
+            const href = link.getAttribute('href');
+            // Skip the tweet's own permalink and analytics/views links
+            if (href === tweetHref) continue;
+            if (href.includes('/analytics')) continue;
+            // Must be a different tweet's /status/ URL — likely the quote tweet
+            if (/\/status\/\d+/.test(href)) {
+                link.click();
+                return;
+            }
         }
     }
 
