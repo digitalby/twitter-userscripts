@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Backspace to Go Back
 // @namespace    https://github.com/digitalby
-// @version      1.0
+// @version      1.1
 // @author       digitalby
 // @description  Press Backspace to navigate back on Twitter/X
 // @match        https://twitter.com/*
@@ -20,6 +20,12 @@
         if (tag === 'INPUT' || tag === 'TEXTAREA' || isEditable) return;
 
         e.preventDefault();
-        history.back();
+        // Use Twitter's soft navigation back button if available
+        const backBtn = document.querySelector('[data-testid="app-bar-back"]');
+        if (backBtn) {
+            backBtn.click();
+        } else {
+            history.back();
+        }
     });
 })();
