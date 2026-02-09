@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.7
+// @version      1.0.8
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -44,6 +44,7 @@
     let fetchRunning = false;
     let discoveredQueryId = null;
     let discoveryPromise = null;
+    let capturedFeatures = null;
 
     function getCsrfToken() {
         const match = document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/);
@@ -133,22 +134,20 @@
                 return;
             }
 
+            // Wait for features to be captured from Twitter's own requests
+            if (!capturedFeatures) {
+                for (let i = 0; i < 10; i++) {
+                    await new Promise(r => setTimeout(r, 500));
+                    if (capturedFeatures) break;
+                }
+            }
+            if (!capturedFeatures) {
+                console.warn('[FollowerCount] No features captured, skipping fetch for', screenName);
+                return;
+            }
+
             const variables = JSON.stringify({ screen_name: screenName, withSafetyModeUserFields: true });
-            const features = JSON.stringify({
-                hidden_profile_subscriptions_enabled: true,
-                rweb_tipjar_consumption_enabled: true,
-                responsive_web_graphql_exclude_directive_enabled: true,
-                verified_phone_label_enabled: false,
-                subscriptions_verification_info_is_identity_verified_enabled: true,
-                subscriptions_verification_info_verified_since_enabled: true,
-                highlights_tweets_tab_ui_enabled: true,
-                responsive_web_twitter_article_notes_tab_enabled: true,
-                subscriptions_feature_can_gift_premium: true,
-                creator_subscriptions_tweet_preview_api_enabled: true,
-                responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-                responsive_web_graphql_timeline_navigation_enabled: true,
-            });
-            const params = new URLSearchParams({ variables, features, fieldToggles: '{}' });
+            const params = new URLSearchParams({ variables, features: capturedFeatures, fieldToggles: '{}' });
             const url = `https://x.com/i/api/graphql/${discoveredQueryId}/UserByScreenName?${params}`;
 
             const resp = await origFetch(url, {
@@ -216,6 +215,17 @@
                 if (qidMatch && !discoveredQueryId) {
                     discoveredQueryId = qidMatch[1];
                     console.log('[FollowerCount] Captured UserByScreenName queryId from traffic:', discoveredQueryId);
+                }
+                // Capture features from any outgoing GraphQL request
+                if (!capturedFeatures) {
+                    try {
+                        const u = new URL(url, location.origin);
+                        const f = u.searchParams.get('features');
+                        if (f) {
+                            capturedFeatures = f;
+                            console.log('[FollowerCount] Captured features from traffic');
+                        }
+                    } catch {}
                 }
             }
             if (url && (url.includes('/graphql/') || url.includes('/i/api/'))) {
