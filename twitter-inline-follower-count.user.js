@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.4.0
+// @version      1.5.0
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -73,6 +73,8 @@
     const fetchQueued = new Set();
     let fetchQueue = [];
     let fetchRunning = false;
+    let queueGeneration = 0; // incremented on cancellation
+    let consecutiveRequests = 0; // for escalating delay
     let discoveredQueryId = null;
     let discoveryPromise = null;
     let capturedFeatures = null;
@@ -146,6 +148,13 @@
         return null;
     }
 
+    function cancelQueue() {
+        queueGeneration++;
+        fetchQueue = [];
+        fetchQueued.clear();
+        consecutiveRequests = 0;
+    }
+
     function queueUserFetch(handle) {
         if (fetchQueued.has(handle)) return;
         // Skip if we already have a fresh cache entry
@@ -153,25 +162,25 @@
         if (cached && cached.ts && (Date.now() - cached.ts) < CACHE_TTL) return;
         fetchQueued.add(handle);
         fetchQueue.push(handle);
-        drainFetchQueue();
+        if (!fetchRunning) drainFetchQueue();
     }
 
     function isRateLimited() {
         const now = Date.now();
         if (now < ratePausedUntil) return true;
-        // Prune old timestamps outside the window
         requestTimestamps = requestTimestamps.filter(t => (now - t) < RATE_WINDOW);
         return requestTimestamps.length >= RATE_MAX;
     }
 
     function drainFetchQueue() {
+        const gen = queueGeneration;
         if (fetchRunning || fetchQueue.length === 0) return;
         if (isRateLimited()) {
             const retryIn = ratePausedUntil > Date.now()
                 ? ratePausedUntil - Date.now()
-                : 30000; // check again in 30s if window-limited
+                : 30000;
             console.log('[FollowerCount] Rate limited, retrying in', Math.round(retryIn / 1000), 's (' + fetchQueue.length, 'queued)');
-            setTimeout(drainFetchQueue, retryIn);
+            setTimeout(() => { if (queueGeneration === gen) drainFetchQueue(); }, retryIn);
             return;
         }
         fetchRunning = true;
@@ -179,8 +188,13 @@
         requestTimestamps.push(Date.now());
         fetchUserByScreenName(handle).finally(() => {
             fetchRunning = false;
-            const delay = randomDelay(1000, 3000);
-            setTimeout(drainFetchQueue, delay);
+            // Cancelled — don't continue draining the old queue
+            if (queueGeneration !== gen) return;
+            // Escalating delay: 1-3s, 2-4s, 3-5s, ... capped at 10-12s
+            const step = Math.min(consecutiveRequests, 9);
+            consecutiveRequests++;
+            const delay = randomDelay(1000 + step * 1000, 3000 + step * 1000);
+            setTimeout(() => { if (queueGeneration === gen) drainFetchQueue(); }, delay);
         });
     }
 
@@ -389,6 +403,8 @@
 
     function processTweets() {
         injectStyles();
+        // Cancel any in-flight queue — we'll rebuild from currently visible tweets
+        cancelQueue();
         const articles = document.querySelectorAll('article[data-testid="tweet"]');
         for (const article of articles) {
             if (article.hasAttribute(BADGE_ATTR)) continue;
