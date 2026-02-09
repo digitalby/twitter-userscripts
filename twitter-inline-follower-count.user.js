@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.0.8
+// @version      1.0.9
 // @author       digitalby
 // @description  Display follower count directly in tweets (e.g. Google @Google · Feb 2 · [42M followers])
 // @match        https://twitter.com/*
@@ -80,6 +80,17 @@
                     if (match) {
                         discoveredQueryId = match[1];
                         console.log('[FollowerCount] Discovered queryId:', discoveredQueryId, 'from', script.src);
+                        // Extract featureSwitches near the UserByScreenName definition
+                        const idx = match.index;
+                        const nearby = text.substring(idx, idx + 2000);
+                        const featMatch = nearby.match(/featureSwitches:\[([^\]]+)\]/);
+                        if (featMatch) {
+                            const switches = featMatch[1].match(/"([^"]+)"/g).map(s => s.slice(1, -1));
+                            const featObj = {};
+                            switches.forEach(s => { featObj[s] = true; });
+                            capturedFeatures = JSON.stringify(featObj);
+                            console.log('[FollowerCount] Extracted', switches.length, 'features from bundle');
+                        }
                         return discoveredQueryId;
                     }
                 }
@@ -131,18 +142,13 @@
             }
             if (!discoveredQueryId) {
                 console.warn('[FollowerCount] No queryId available, skipping fetch for', screenName);
+                fetchQueued.delete(screenName.toLowerCase()); // allow retry later
                 return;
             }
 
-            // Wait for features to be captured from Twitter's own requests
             if (!capturedFeatures) {
-                for (let i = 0; i < 10; i++) {
-                    await new Promise(r => setTimeout(r, 500));
-                    if (capturedFeatures) break;
-                }
-            }
-            if (!capturedFeatures) {
-                console.warn('[FollowerCount] No features captured, skipping fetch for', screenName);
+                console.warn('[FollowerCount] No features available, skipping fetch for', screenName);
+                fetchQueued.delete(screenName.toLowerCase()); // allow retry later
                 return;
             }
 
@@ -215,17 +221,6 @@
                 if (qidMatch && !discoveredQueryId) {
                     discoveredQueryId = qidMatch[1];
                     console.log('[FollowerCount] Captured UserByScreenName queryId from traffic:', discoveredQueryId);
-                }
-                // Capture features from any outgoing GraphQL request
-                if (!capturedFeatures) {
-                    try {
-                        const u = new URL(url, location.origin);
-                        const f = u.searchParams.get('features');
-                        if (f) {
-                            capturedFeatures = f;
-                            console.log('[FollowerCount] Captured features from traffic');
-                        }
-                    } catch {}
                 }
             }
             if (url && (url.includes('/graphql/') || url.includes('/i/api/'))) {
