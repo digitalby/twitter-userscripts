@@ -19,20 +19,41 @@
         }
     };
 
-    function renderSection(dialog) {
+    // Find the container holding all shortcut sections.
+    // Desktop: [role="dialog"] > ... > [data-viewportview="true"] > sections
+    // Mobile:  <main> > ... > scrollable div > sections
+    // In both cases, sections are siblings containing [role="table"].
+    function findSectionsContainer() {
+        const tables = document.querySelectorAll('[role="table"]');
+        for (const table of tables) {
+            // Walk up to find the parent that contains "Keyboard shortcuts" heading
+            let el = table.parentElement;
+            while (el) {
+                const heading = el.querySelector('h2#modal-header, h2[role="heading"]');
+                if (heading && heading.textContent.includes('Keyboard shortcuts')) {
+                    return el;
+                }
+                el = el.parentElement;
+            }
+        }
+        return null;
+    }
+
+    function renderSection(container) {
         // Remove previous render if any
-        const old = dialog.querySelector('#' + SECTION_ID);
+        const old = document.getElementById(SECTION_ID);
         if (old) old.remove();
 
         if (entries.length === 0) return;
 
         // Find an existing section to clone structure from.
-        // Each section is: wrapper div > (heading wrapper div + table div)
-        const existingTable = dialog.querySelector('[role="table"]');
+        // Each section wraps a heading + [role="table"]. The section is the
+        // table's parent (which may have varying CSS classes across views).
+        const existingTable = container.querySelector('[role="table"]');
         if (!existingTable) return;
         const existingRow = existingTable.querySelector('[role="row"]');
         if (!existingRow) return;
-        const existingSection = existingTable.closest('.css-175oi2r.r-1wbh5a2');
+        const existingSection = existingTable.parentElement;
         if (!existingSection) return;
 
         // Clone the entire section as our template
@@ -80,31 +101,22 @@
             table.appendChild(row);
         }
 
-        // Find the scrollable content area and append after the last section
-        const scrollable = dialog.querySelector('[data-viewportview="true"]')
-            || existingSection.parentElement;
-        if (scrollable) {
-            scrollable.appendChild(section);
+        // Append after the last existing section
+        existingSection.parentElement.appendChild(section);
+    }
+
+    function checkForShortcutsView() {
+        // Already injected
+        if (document.getElementById(SECTION_ID)) return;
+
+        const container = findSectionsContainer();
+        if (container) {
+            renderSection(container);
         }
     }
 
-    function checkForDialog() {
-        const dialogs = document.querySelectorAll('[role="dialog"]');
-        for (const dialog of dialogs) {
-            if (dialog.querySelector('#' + SECTION_ID)) continue;
-            // Check if this is the keyboard shortcuts dialog
-            const headings = dialog.querySelectorAll('h2, [role="heading"]');
-            for (const h of headings) {
-                if (h.textContent.includes('Keyboard shortcuts')) {
-                    renderSection(dialog);
-                    return;
-                }
-            }
-        }
-    }
-
-    // Watch for dialog appearance
-    const observer = new MutationObserver(checkForDialog);
+    // Watch for shortcuts view appearance (dialog on desktop, page on mobile)
+    const observer = new MutationObserver(checkForShortcutsView);
 
     function startObserver() {
         observer.observe(document.body, { childList: true, subtree: true });
