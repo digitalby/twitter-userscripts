@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Inline Follower Count
 // @namespace    https://github.com/digitalby
-// @version      1.7.0
+// @version      1.7.1
 // @author       digitalby
 // @description  Display follower count and bio directly in tweets
 // @match        https://twitter.com/*
@@ -420,17 +420,28 @@
         (document.head || document.documentElement).appendChild(style);
     }
 
-    // Extract @handle from an element's descendant spans
+    // Extract @handle from an element's descendant spans.
+    // Twitter handle spans contain exactly "@username" (1-15 word chars).
+    // We must skip display-name text that happens to contain "@" (e.g.
+    // "Yury @ yuryv.info" or "@user@mastodon.social").
+    const HANDLE_RE = /^@(\w{1,15})$/;
     function findHandle(container) {
         if (!container) return null;
         const spans = container.querySelectorAll('span');
         for (const span of spans) {
-            const text = span.textContent.trim();
-            if (text.startsWith('@') && span.children.length === 0) {
-                return text.slice(1).toLowerCase();
-            }
+            if (span.children.length !== 0) continue;
+            const m = span.textContent.trim().match(HANDLE_RE);
+            if (m) return m[1].toLowerCase();
         }
         return null;
+    }
+
+    // Extract handle from avatar data-testid (programmatic, immune to display name tricks)
+    function findHandleFromAvatar(container) {
+        const avatar = container.querySelector('[data-testid^="UserAvatar-Container-"]');
+        if (!avatar) return null;
+        const handle = avatar.getAttribute('data-testid').replace('UserAvatar-Container-', '');
+        return handle ? handle.toLowerCase() : null;
     }
 
     function processTweets() {
@@ -439,14 +450,8 @@
             const prevState = article.getAttribute(BADGE_ATTR);
 
             const userNameContainer = article.querySelector('[data-testid="User-Name"]');
-            let handle = findHandle(userNameContainer);
-
-            if (!handle) {
-                const avatar = article.querySelector('[data-testid^="UserAvatar-Container-"]');
-                if (avatar) {
-                    handle = avatar.getAttribute('data-testid').replace('UserAvatar-Container-', '').toLowerCase();
-                }
-            }
+            // Prefer avatar data-testid (reliable), fall back to span scanning
+            let handle = findHandleFromAvatar(article) || findHandle(userNameContainer);
             if (!handle) continue;
 
             const cached = userCache.get(handle);
@@ -503,13 +508,8 @@
         for (const cell of cells) {
             const prevState = cell.getAttribute(BADGE_ATTR);
 
-            let handle = findHandle(cell);
-            if (!handle) {
-                const avatar = cell.querySelector('[data-testid^="UserAvatar-Container-"]');
-                if (avatar) {
-                    handle = avatar.getAttribute('data-testid').replace('UserAvatar-Container-', '').toLowerCase();
-                }
-            }
+            // Prefer avatar data-testid (reliable), fall back to span scanning
+            let handle = findHandleFromAvatar(cell) || findHandle(cell);
             if (!handle) continue;
 
             const cached = userCache.get(handle);
