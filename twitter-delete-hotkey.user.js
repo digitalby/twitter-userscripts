@@ -1,16 +1,19 @@
 // ==UserScript==
 // @name         Twitter - Delete Hotkey
 // @namespace    https://github.com/digitalby
-// @version      1.0.0
+// @version      1.1.0
 // @author       digitalby
 // @description  Press d on a focused tweet to delete it (via the ... menu)
 // @match        https://twitter.com/*
 // @match        https://x.com/*
+// @require      https://raw.githubusercontent.com/digitalby/twitter-userscripts/main/twitter-custom-keys.lib.js
 // @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    window.__twitterCustomKeys?.register('d', 'Delete focused tweet');
 
     function isTyping() {
         const el = document.activeElement;

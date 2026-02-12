@@ -1,16 +1,22 @@
 // ==UserScript==
 // @name         Twitter - User Cell Hotkeys
 // @namespace    https://github.com/digitalby
-// @version      1.1.0
+// @version      1.2.0
 // @author       digitalby
 // @description  Keyboard shortcuts on user cells: x=block, f=profile, u=mute, w=follow
 // @match        https://twitter.com/*
 // @match        https://x.com/*
+// @require      https://raw.githubusercontent.com/digitalby/twitter-userscripts/main/twitter-custom-keys.lib.js
 // @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    window.__twitterCustomKeys?.register('x', 'Block user (user cell)');
+    window.__twitterCustomKeys?.register('f', 'Open profile (user cell)');
+    window.__twitterCustomKeys?.register('u', 'Mute user (user cell)');
+    window.__twitterCustomKeys?.register('w', 'Follow user (user cell)');
 
     function isTyping() {
         const el = document.activeElement;

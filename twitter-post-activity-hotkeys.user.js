@@ -1,16 +1,22 @@
 // ==UserScript==
 // @name         Twitter - Post Activity Hotkeys
 // @namespace    https://github.com/digitalby
-// @version      1.0.0
+// @version      1.1.0
 // @author       digitalby
 // @description  Keyboard shortcuts for post activity: v to view, q/t/l to switch tabs (Quotes/Reposts/Likes)
 // @match        https://twitter.com/*
 // @match        https://x.com/*
+// @require      https://raw.githubusercontent.com/digitalby/twitter-userscripts/main/twitter-custom-keys.lib.js
 // @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    window.__twitterCustomKeys?.register('v', 'View post activity');
+    window.__twitterCustomKeys?.register('q', 'Quotes tab');
+    window.__twitterCustomKeys?.register('t', 'Reposts tab');
+    window.__twitterCustomKeys?.register('l', 'Likes tab');
 
     function isTyping() {
         const el = document.activeElement;

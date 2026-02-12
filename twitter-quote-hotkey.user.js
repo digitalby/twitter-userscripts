@@ -1,16 +1,19 @@
 // ==UserScript==
 // @name         Twitter - Open Quote Tweet Hotkey
 // @namespace    https://github.com/digitalby
-// @version      1.0.1
+// @version      1.1.0
 // @author       digitalby
 // @description  Press p on a focused tweet to open its embedded quote tweet
 // @match        https://twitter.com/*
 // @match        https://x.com/*
+// @require      https://raw.githubusercontent.com/digitalby/twitter-userscripts/main/twitter-custom-keys.lib.js
 // @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    window.__twitterCustomKeys?.register('p', 'Open quote tweet');
 
     // Track chord prefixes (e.g. g+p = go to profile)
     const CHORD_PREFIXES = ['g'];
