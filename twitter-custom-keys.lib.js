@@ -19,44 +19,6 @@
         }
     };
 
-    function injectStyles() {
-        if (document.getElementById('tm-custom-keys-style')) return;
-        const style = document.createElement('style');
-        style.id = 'tm-custom-keys-style';
-        style.textContent = `
-            #${SECTION_ID} {
-                padding: 0 16px 16px;
-            }
-            #${SECTION_ID} h3 {
-                font-size: 17px;
-                font-weight: 700;
-                color: rgb(231, 233, 234);
-                padding: 12px 0 8px;
-                margin: 0;
-            }
-            #${SECTION_ID} .tm-ck-row {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 4px 0;
-            }
-            #${SECTION_ID} .tm-ck-desc {
-                color: rgb(113, 118, 123);
-                font-size: 15px;
-            }
-            #${SECTION_ID} .tm-ck-key {
-                color: rgb(231, 233, 234);
-                font-size: 15px;
-                font-weight: 700;
-                min-width: 24px;
-                text-align: right;
-                margin-left: 16px;
-                white-space: nowrap;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
     function renderSection(dialog) {
         // Remove previous render if any
         const old = dialog.querySelector('#' + SECTION_ID);
@@ -64,39 +26,66 @@
 
         if (entries.length === 0) return;
 
-        injectStyles();
+        // Find an existing section to clone structure from.
+        // Each section is: wrapper div > (heading wrapper div + table div)
+        const existingTable = dialog.querySelector('[role="table"]');
+        if (!existingTable) return;
+        const existingRow = existingTable.querySelector('[role="row"]');
+        if (!existingRow) return;
+        const existingSection = existingTable.closest('.css-175oi2r.r-1wbh5a2');
+        if (!existingSection) return;
 
-        const section = document.createElement('div');
+        // Clone the entire section as our template
+        const section = existingSection.cloneNode(true);
         section.id = SECTION_ID;
 
-        const heading = document.createElement('h3');
-        heading.textContent = 'Custom';
-        section.appendChild(heading);
-
-        for (const { key, description } of entries) {
-            const row = document.createElement('div');
-            row.className = 'tm-ck-row';
-
-            const desc = document.createElement('span');
-            desc.className = 'tm-ck-desc';
-            desc.textContent = description;
-
-            const keyEl = document.createElement('span');
-            keyEl.className = 'tm-ck-key';
-            keyEl.textContent = key;
-
-            row.appendChild(desc);
-            row.appendChild(keyEl);
-            section.appendChild(row);
+        // Update the heading text to "Custom"
+        const headingSpan = section.querySelector('h2[role="heading"] span');
+        if (headingSpan) {
+            headingSpan.textContent = 'Custom';
         }
 
-        // Find the scrollable content area and append
-        const scrollable = dialog.querySelector('[data-viewportview="true"]')
-            || dialog.querySelector('[style*="overflow"]')
-            || dialog;
+        // Get reference to the table, clear its rows, and rebuild
+        const table = section.querySelector('[role="table"]');
+        table.innerHTML = '';
 
-        // Try to find the last existing section to insert after
-        scrollable.appendChild(section);
+        for (const { key, description } of entries) {
+            // Clone a row from the original dialog for correct classes
+            const row = existingRow.cloneNode(true);
+
+            // First cell = description
+            const cells = row.querySelectorAll('[role="cell"]');
+            const descCell = cells[0];
+            const keyCell = cells[1];
+
+            // Set description text
+            const descSpan = descCell.querySelector('span');
+            if (descSpan) {
+                descSpan.textContent = description;
+            } else {
+                descCell.textContent = description;
+            }
+
+            // Set key — clear existing content and rebuild from a single-key template
+            keyCell.innerHTML = '';
+            const existingKeyDiv = existingRow.querySelector('[role="cell"]:last-child > div');
+            if (existingKeyDiv) {
+                const keyDiv = existingKeyDiv.cloneNode(true);
+                keyDiv.textContent = key;
+                keyCell.appendChild(keyDiv);
+            } else {
+                keyCell.textContent = key;
+            }
+
+            table.appendChild(row);
+        }
+
+        // Find the scrollable content area and append after the last section
+        const scrollable = dialog.querySelector('[data-viewportview="true"]')
+            || existingSection.parentElement;
+        if (scrollable) {
+            scrollable.appendChild(section);
+        }
     }
 
     function checkForDialog() {
