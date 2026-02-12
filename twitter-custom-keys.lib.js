@@ -98,6 +98,9 @@
             table.appendChild(row);
         }
 
+        // Force onto its own row in the desktop flex layout (which assumes 3 columns)
+        section.style.flexBasis = '100%';
+
         // Append after the last existing section
         existingSection.parentElement.appendChild(section);
     }
