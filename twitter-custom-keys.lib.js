@@ -22,19 +22,16 @@
     // Find the container holding all shortcut sections.
     // Desktop: [role="dialog"] > ... > [data-viewportview="true"] > sections
     // Mobile:  <main> > ... > scrollable div > sections
-    // In both cases, sections are siblings containing [role="table"].
+    // Identified by the h2#modal-header heading near [role="table"] elements.
+    // Uses structural markers (id, roles) instead of text to support all languages.
     function findSectionsContainer() {
-        const tables = document.querySelectorAll('[role="table"]');
-        for (const table of tables) {
-            // Walk up to find the parent that contains "Keyboard shortcuts" heading
-            let el = table.parentElement;
-            while (el) {
-                const heading = el.querySelector('h2#modal-header, h2[role="heading"]');
-                if (heading && heading.textContent.includes('Keyboard shortcuts')) {
-                    return el;
-                }
-                el = el.parentElement;
-            }
+        const header = document.getElementById('modal-header');
+        if (!header) return null;
+        // Walk up from the header to find the ancestor containing [role="table"] sections
+        let el = header.parentElement;
+        while (el) {
+            if (el.querySelector('[role="table"]')) return el;
+            el = el.parentElement;
         }
         return null;
     }
