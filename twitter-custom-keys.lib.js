@@ -16,6 +16,30 @@
     window.__twitterCustomKeys = {
         register(key, description) {
             entries.push({ key, description });
+        },
+        isTyping(event) {
+            const isEditableElement = (el) => {
+                if (!(el instanceof Element)) return false;
+                if (el.matches('textarea, select, [role="textbox"], [role="searchbox"], [aria-multiline="true"]')) return true;
+                if (el.matches('input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="tel"], input[type="password"], input[type="number"]')) return true;
+                if (el.isContentEditable) return true;
+                if (el.closest('[contenteditable]:not([contenteditable="false"])')) return true;
+                return false;
+            };
+
+            if (event?.isComposing) return true;
+
+            const path = typeof event?.composedPath === 'function' ? event.composedPath() : [];
+            for (const node of path) {
+                if (isEditableElement(node)) return true;
+            }
+
+            let active = document.activeElement;
+            while (active?.shadowRoot?.activeElement) {
+                active = active.shadowRoot.activeElement;
+            }
+
+            return isEditableElement(active);
         }
     };
 
