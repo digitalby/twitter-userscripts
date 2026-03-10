@@ -67,7 +67,7 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        if (e.key === 'd') {
+        if ((window.__twitterCustomKeys?.matchesShortcut?.(e, 'd')) ?? e.key === 'd') {
             e.preventDefault();
             e.stopPropagation();
             deleteTweet();

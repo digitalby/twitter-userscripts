@@ -60,7 +60,7 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        if (e.key === 'f') {
+        if ((window.__twitterCustomKeys?.matchesShortcut?.(e, 'f')) ?? e.key === 'f') {
             e.preventDefault();
             e.stopPropagation();
             openProfile();

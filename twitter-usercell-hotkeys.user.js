@@ -100,23 +100,25 @@
         const cell = getFocusedUserCell();
         if (!cell) return;
 
-        switch (e.key) {
-            case 'x':
+        const key = e.key.toLowerCase();
+
+        switch (true) {
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'x')) ?? key === 'x':
                 e.preventDefault();
                 e.stopPropagation();
                 clickMenuItem(cell, 'Block');
                 break;
-            case 'f':
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'f')) ?? key === 'f':
                 e.preventDefault();
                 e.stopPropagation();
                 openProfile(cell);
                 break;
-            case 'u':
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'u')) ?? key === 'u':
                 e.preventDefault();
                 e.stopPropagation();
                 clickMenuItem(cell, 'Mute');
                 break;
-            case 'w':
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'w')) ?? key === 'w':
                 e.preventDefault();
                 e.stopPropagation();
                 followUser(cell);

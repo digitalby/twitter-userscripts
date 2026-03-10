@@ -22,7 +22,9 @@
     let chordTimer = null;
 
     document.addEventListener('keydown', function (e) {
-        if (CHORD_PREFIXES.includes(e.key)) {
+        const key = e.key.toLowerCase();
+        const chordPrefixMatched = CHORD_PREFIXES.some(prefix => (window.__twitterCustomKeys?.matchesShortcut?.(e, prefix)) ?? key === prefix);
+        if (chordPrefixMatched) {
             chordPending = true;
             clearTimeout(chordTimer);
             chordTimer = setTimeout(() => { chordPending = false; }, CHORD_TIMEOUT);
@@ -85,7 +87,7 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        if (e.key === 'p') {
+        if ((window.__twitterCustomKeys?.matchesShortcut?.(e, 'p')) ?? e.key === 'p') {
             if (chordPending) { chordPending = false; return; }
             e.preventDefault();
             e.stopPropagation();

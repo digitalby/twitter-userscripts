@@ -82,19 +82,21 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        switch (e.key) {
-            case 'v':
+        const key = e.key.toLowerCase();
+
+        switch (true) {
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'v')) ?? key === 'v':
                 e.preventDefault();
                 e.stopPropagation();
                 viewPostActivity();
                 break;
-            case 'q':
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'q')) ?? key === 'q':
                 if (clickTab('Quotes')) { e.preventDefault(); e.stopPropagation(); }
                 break;
-            case 't':
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 't')) ?? key === 't':
                 if (clickTab('Reposts')) { e.preventDefault(); e.stopPropagation(); }
                 break;
-            case 'l':
+            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'l')) ?? key === 'l':
                 if (clickTab('Likes')) { e.preventDefault(); e.stopPropagation(); }
                 break;
         }

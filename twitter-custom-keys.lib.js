@@ -12,11 +12,39 @@
 
     const entries = [];
     const SECTION_ID = 'tm-custom-keys-section';
+    // User-editable toggle: set to false to use strict e.key matching only.
+    // true (default) matches letter hotkeys by physical key (KeyboardEvent.code),
+    // which keeps shortcuts working on non-English layouts (ЙЦУКЕН, Greek, etc.).
+    const SMART_LAYOUT_HOTKEYS = true;
+
+    function normalizeKey(key) {
+        if (typeof key !== 'string') return '';
+        return key.length === 1 ? key.toLowerCase() : key;
+    }
+
+    function toLetterCode(shortcutKey) {
+        if (shortcutKey.length !== 1) return null;
+        if (!/^[a-z]$/i.test(shortcutKey)) return null;
+        return `Key${shortcutKey.toUpperCase()}`;
+    }
+
+    function matchesShortcut(event, shortcutKey) {
+        const normalizedShortcut = normalizeKey(shortcutKey);
+        if (!normalizedShortcut) return false;
+
+        if (normalizeKey(event.key) === normalizedShortcut) return true;
+        if (!SMART_LAYOUT_HOTKEYS) return false;
+
+        const code = toLetterCode(normalizedShortcut);
+        return Boolean(code && event.code === code);
+    }
 
     window.__twitterCustomKeys = {
         register(key, description) {
             entries.push({ key, description });
-        }
+        },
+        matchesShortcut,
+        smartLayoutHotkeysEnabled: SMART_LAYOUT_HOTKEYS
     };
 
     // Find the container holding all shortcut sections.

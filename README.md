@@ -65,6 +65,7 @@ You need a userscript manager extension. Recommended options:
 - Modifier keys (Ctrl, Cmd, Alt) are ignored to avoid conflicts with browser shortcuts.
 - Tweet-level hotkeys (`d`, `p`, `f`) operate on the tweet focused via Twitter's built-in `j`/`k` navigation.
 - Scripts work on both `twitter.com` and `x.com`.
+- Letter hotkeys are layout-aware by default (uses physical key position via `KeyboardEvent.code`) so they work on non-English layouts; set `SMART_LAYOUT_HOTKEYS` to `false` in `twitter-custom-keys.lib.js` to return to strict `e.key` matching.
 
 ## License
 
