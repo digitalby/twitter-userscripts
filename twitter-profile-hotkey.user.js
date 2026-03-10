@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Open Profile Hotkey
 // @namespace    https://github.com/digitalby
-// @version      1.1.0
+// @version      1.2.0
 // @author       digitalby
 // @description  Press f on a focused tweet to open the author's profile
 // @match        https://twitter.com/*
@@ -14,6 +14,12 @@
     'use strict';
 
     window.__twitterCustomKeys?.register('f', "Open author's profile");
+
+    function isShortcut(event, key) {
+        const matcher = window.__twitterCustomKeys?.matchesShortcut;
+        if (matcher) return matcher(event, key);
+        return event.key.toLowerCase() === key.toLowerCase();
+    }
 
     function isTyping() {
         const el = document.activeElement;
@@ -60,7 +66,7 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        if ((window.__twitterCustomKeys?.matchesShortcut?.(e, 'f')) ?? e.key === 'f') {
+        if (isShortcut(e, 'f')) {
             e.preventDefault();
             e.stopPropagation();
             openProfile();

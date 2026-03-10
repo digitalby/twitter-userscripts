@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Delete Hotkey
 // @namespace    https://github.com/digitalby
-// @version      1.1.0
+// @version      1.2.0
 // @author       digitalby
 // @description  Press d on a focused tweet to delete it (via the ... menu)
 // @match        https://twitter.com/*
@@ -14,6 +14,12 @@
     'use strict';
 
     window.__twitterCustomKeys?.register('d', 'Delete focused tweet');
+
+    function isShortcut(event, key) {
+        const matcher = window.__twitterCustomKeys?.matchesShortcut;
+        if (matcher) return matcher(event, key);
+        return event.key.toLowerCase() === key.toLowerCase();
+    }
 
     function isTyping() {
         const el = document.activeElement;
@@ -67,7 +73,7 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        if ((window.__twitterCustomKeys?.matchesShortcut?.(e, 'd')) ?? e.key === 'd') {
+        if (isShortcut(e, 'd')) {
             e.preventDefault();
             e.stopPropagation();
             deleteTweet();

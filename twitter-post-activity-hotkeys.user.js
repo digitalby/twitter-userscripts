@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Post Activity Hotkeys
 // @namespace    https://github.com/digitalby
-// @version      1.1.0
+// @version      1.2.0
 // @author       digitalby
 // @description  Keyboard shortcuts for post activity: v to view, q/t/l to switch tabs (Quotes/Reposts/Likes)
 // @match        https://twitter.com/*
@@ -17,6 +17,12 @@
     window.__twitterCustomKeys?.register('q', 'Quotes tab');
     window.__twitterCustomKeys?.register('t', 'Reposts tab');
     window.__twitterCustomKeys?.register('l', 'Likes tab');
+
+    function isShortcut(event, key) {
+        const matcher = window.__twitterCustomKeys?.matchesShortcut;
+        if (matcher) return matcher(event, key);
+        return event.key.toLowerCase() === key.toLowerCase();
+    }
 
     function isTyping() {
         const el = document.activeElement;
@@ -82,23 +88,26 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        const key = e.key.toLowerCase();
+        if (isShortcut(e, 'v')) {
+            e.preventDefault();
+            e.stopPropagation();
+            viewPostActivity();
+            return;
+        }
 
-        switch (true) {
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'v')) ?? key === 'v':
-                e.preventDefault();
-                e.stopPropagation();
-                viewPostActivity();
-                break;
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'q')) ?? key === 'q':
-                if (clickTab('Quotes')) { e.preventDefault(); e.stopPropagation(); }
-                break;
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 't')) ?? key === 't':
-                if (clickTab('Reposts')) { e.preventDefault(); e.stopPropagation(); }
-                break;
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'l')) ?? key === 'l':
-                if (clickTab('Likes')) { e.preventDefault(); e.stopPropagation(); }
-                break;
+        if (isShortcut(e, 'q')) {
+            if (clickTab('Quotes')) { e.preventDefault(); e.stopPropagation(); }
+            return;
+        }
+
+        if (isShortcut(e, 't')) {
+            if (clickTab('Reposts')) { e.preventDefault(); e.stopPropagation(); }
+            return;
+        }
+
+        if (isShortcut(e, 'l')) {
+            if (clickTab('Likes')) { e.preventDefault(); e.stopPropagation(); }
+            return;
         }
     });
 

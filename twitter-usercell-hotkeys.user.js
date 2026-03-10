@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - User Cell Hotkeys
 // @namespace    https://github.com/digitalby
-// @version      1.2.0
+// @version      1.3.0
 // @author       digitalby
 // @description  Keyboard shortcuts on user cells: x=block, f=profile, u=mute, w=follow
 // @match        https://twitter.com/*
@@ -17,6 +17,12 @@
     window.__twitterCustomKeys?.register('f', 'Open profile (user cell)');
     window.__twitterCustomKeys?.register('u', 'Mute user (user cell)');
     window.__twitterCustomKeys?.register('w', 'Follow user (user cell)');
+
+    function isShortcut(event, key) {
+        const matcher = window.__twitterCustomKeys?.matchesShortcut;
+        if (matcher) return matcher(event, key);
+        return event.key.toLowerCase() === key.toLowerCase();
+    }
 
     function isTyping() {
         const el = document.activeElement;
@@ -100,29 +106,31 @@
         const cell = getFocusedUserCell();
         if (!cell) return;
 
-        const key = e.key.toLowerCase();
+        if (isShortcut(e, 'x')) {
+            e.preventDefault();
+            e.stopPropagation();
+            clickMenuItem(cell, 'Block');
+            return;
+        }
 
-        switch (true) {
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'x')) ?? key === 'x':
-                e.preventDefault();
-                e.stopPropagation();
-                clickMenuItem(cell, 'Block');
-                break;
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'f')) ?? key === 'f':
-                e.preventDefault();
-                e.stopPropagation();
-                openProfile(cell);
-                break;
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'u')) ?? key === 'u':
-                e.preventDefault();
-                e.stopPropagation();
-                clickMenuItem(cell, 'Mute');
-                break;
-            case (window.__twitterCustomKeys?.matchesShortcut?.(e, 'w')) ?? key === 'w':
-                e.preventDefault();
-                e.stopPropagation();
-                followUser(cell);
-                break;
+        if (isShortcut(e, 'f')) {
+            e.preventDefault();
+            e.stopPropagation();
+            openProfile(cell);
+            return;
+        }
+
+        if (isShortcut(e, 'u')) {
+            e.preventDefault();
+            e.stopPropagation();
+            clickMenuItem(cell, 'Mute');
+            return;
+        }
+
+        if (isShortcut(e, 'w')) {
+            e.preventDefault();
+            e.stopPropagation();
+            followUser(cell);
         }
     });
 

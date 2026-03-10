@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Open Quote Tweet Hotkey
 // @namespace    https://github.com/digitalby
-// @version      1.1.0
+// @version      1.2.0
 // @author       digitalby
 // @description  Press p on a focused tweet to open its embedded quote tweet
 // @match        https://twitter.com/*
@@ -15,6 +15,12 @@
 
     window.__twitterCustomKeys?.register('p', 'Open quote tweet');
 
+    function isShortcut(event, key) {
+        const matcher = window.__twitterCustomKeys?.matchesShortcut;
+        if (matcher) return matcher(event, key);
+        return event.key.toLowerCase() === key.toLowerCase();
+    }
+
     // Track chord prefixes (e.g. g+p = go to profile)
     const CHORD_PREFIXES = ['g'];
     const CHORD_TIMEOUT = 1000;
@@ -22,8 +28,7 @@
     let chordTimer = null;
 
     document.addEventListener('keydown', function (e) {
-        const key = e.key.toLowerCase();
-        const chordPrefixMatched = CHORD_PREFIXES.some(prefix => (window.__twitterCustomKeys?.matchesShortcut?.(e, prefix)) ?? key === prefix);
+        const chordPrefixMatched = CHORD_PREFIXES.some(prefix => isShortcut(e, prefix));
         if (chordPrefixMatched) {
             chordPending = true;
             clearTimeout(chordTimer);
@@ -87,7 +92,7 @@
         if (isTyping()) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-        if ((window.__twitterCustomKeys?.matchesShortcut?.(e, 'p')) ?? e.key === 'p') {
+        if (isShortcut(e, 'p')) {
             if (chordPending) { chordPending = false; return; }
             e.preventDefault();
             e.stopPropagation();
