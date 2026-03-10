@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - Post Activity Hotkeys
 // @namespace    https://github.com/digitalby
-// @version      1.1.0
+// @version      1.1.1
 // @author       digitalby
 // @description  Keyboard shortcuts for post activity: v to view, q/t/l to switch tabs (Quotes/Reposts/Likes)
 // @match        https://twitter.com/*
@@ -18,14 +18,8 @@
     window.__twitterCustomKeys?.register('t', 'Reposts tab');
     window.__twitterCustomKeys?.register('l', 'Likes tab');
 
-    function isTyping() {
-        const el = document.activeElement;
-        if (!el) return false;
-        const tag = el.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
-        if (el.getAttribute('contenteditable') === 'true') return true;
-        if (el.closest('[contenteditable="true"]')) return true;
-        return false;
+    function isTyping(event) {
+        return window.__twitterCustomKeys?.isTyping?.(event) ?? false;
     }
 
     function getFocusedTweet() {
@@ -79,7 +73,7 @@
     }
 
     document.addEventListener('keydown', function (e) {
-        if (isTyping()) return;
+        if (isTyping(e)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
         switch (e.key) {

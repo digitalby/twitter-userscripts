@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitter - User Cell Hotkeys
 // @namespace    https://github.com/digitalby
-// @version      1.2.0
+// @version      1.2.1
 // @author       digitalby
 // @description  Keyboard shortcuts on user cells: x=block, f=profile, u=mute, w=follow
 // @match        https://twitter.com/*
@@ -18,14 +18,8 @@
     window.__twitterCustomKeys?.register('u', 'Mute user (user cell)');
     window.__twitterCustomKeys?.register('w', 'Follow user (user cell)');
 
-    function isTyping() {
-        const el = document.activeElement;
-        if (!el) return false;
-        const tag = el.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
-        if (el.getAttribute('contenteditable') === 'true') return true;
-        if (el.closest('[contenteditable="true"]')) return true;
-        return false;
+    function isTyping(event) {
+        return window.__twitterCustomKeys?.isTyping?.(event) ?? false;
     }
 
     function getFocusedUserCell() {
@@ -94,7 +88,7 @@
     }
 
     document.addEventListener('keydown', function (e) {
-        if (isTyping()) return;
+        if (isTyping(e)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
         const cell = getFocusedUserCell();
