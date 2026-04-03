@@ -1,0 +1,11 @@
+{
+  "name": "twitter-userscripts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build tooling for packaging Twitter/X userscripts as Chromium and Firefox extensions.",
+  "type": "module",
+  "scripts": {
+    "clean:extensions": "rm -rf blink moz",
+    "build:extensions": "node tools/build-extensions.mjs"
+  }
+}
