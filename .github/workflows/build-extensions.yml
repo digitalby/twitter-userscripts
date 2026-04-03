@@ -1,0 +1,35 @@
+name: Build extension bundles
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build extension outputs
+        run: npm run build:extensions
+
+      - name: Archive blink build
+        run: cd blink && zip -r ../twitter-userscripts-blink.zip .
+
+      - name: Archive moz build
+        run: cd moz && zip -r ../twitter-userscripts-moz.zip .
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-builds
+          path: |
+            twitter-userscripts-blink.zip
+            twitter-userscripts-moz.zip

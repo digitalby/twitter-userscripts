@@ -1,0 +1,84 @@
+{
+  "manifest_version": 3,
+  "name": "Twitter Userscripts (Firefox)",
+  "version": "1.7.1",
+  "description": "Built from userscripts in this repository. Source files stay in place for userscript-manager installs.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "scripts/twitter-backspace-back.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "scripts/twitter-delete-hotkey.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "scripts/twitter-inline-follower-count.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "scripts/twitter-post-activity-hotkeys.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "scripts/twitter-profile-hotkey.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "scripts/twitter-quote-hotkey.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "scripts/twitter-usercell-hotkeys.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "twitter-userscripts@digitalby.github",
+      "strict_min_version": "109.0"
+    }
+  }
+}

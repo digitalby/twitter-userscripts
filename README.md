@@ -24,6 +24,41 @@ A collection of userscripts that add keyboard shortcuts, inline information, and
 
 ## Installation
 
+## Build as Browser Extensions (Chromium + Firefox)
+
+This repo can also package the existing `.user.js` sources into two standalone extension folders:
+
+- `blink/` for Chrome/Chromium (Manifest V3)
+- `moz/` for Firefox (Manifest V3)
+
+The original userscript source files are not moved or renamed, so existing `raw.githubusercontent.com` install links continue to work.
+
+### Prerequisite
+
+- Node.js 20+ (recommended for local and CI builds)
+
+### Build
+
+```bash
+npm run build:extensions
+```
+
+This command:
+
+- Scans all `*.user.js` files in the repository root.
+- Reads userscript metadata such as `@match` and `@run-at`.
+- Inlines `@require` dependencies that point to this repository's raw GitHub URLs.
+- Writes extension-ready output to `blink/` and `moz/`.
+
+### Load unpacked extension
+
+- Chromium: go to `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, select `blink/`.
+- Firefox: go to `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, select `moz/manifest.json`.
+
+### CI/CD
+
+A GitHub Actions workflow at `.github/workflows/build-extensions.yml` runs the build, creates ZIP archives for both browser targets, and uploads them as workflow artifacts.
+
 ### Desktop Browsers
 
 You need a userscript manager extension. Recommended options:
