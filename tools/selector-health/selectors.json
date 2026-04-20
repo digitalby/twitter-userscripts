@@ -1,0 +1,98 @@
+{
+  "source": "Mirrors the 'Twitter/X DOM Patterns' section of CLAUDE.md. Each entry's 'needle' is a proxy identifier present in the compiled x.com React bundle whose absence would indicate the feature we depend on has been renamed or removed. See README.md for what this check does and does not detect.",
+  "target": "https://x.com/jack/status/20",
+  "selectors": [
+    {
+      "id": "tweet-article",
+      "testid": "tweet",
+      "needle": "[data-testid=\"tweet\"]",
+      "minOccurrences": 1,
+      "criticality": "critical",
+      "why": "Twitter's own code uses `document.querySelector('[data-testid=\"tweet\"]')`, so this literal appears in the bundle. If it disappears, they've renamed the wrapper.",
+      "scripts": [
+        "twitter-delete-hotkey.user.js",
+        "twitter-post-activity-hotkeys.user.js",
+        "twitter-quote-hotkey.user.js",
+        "twitter-profile-hotkey.user.js",
+        "twitter-custom-keys.lib.js"
+      ]
+    },
+    {
+      "id": "three-dot-menu",
+      "testid": "caret",
+      "needle": "TWEET_CARET",
+      "minOccurrences": 1,
+      "criticality": "critical",
+      "why": "Analytics scope constant for the tweet three-dot menu. Narrow and stable.",
+      "scripts": [
+        "twitter-delete-hotkey.user.js",
+        "twitter-post-activity-hotkeys.user.js",
+        "twitter-usercell-hotkeys.user.js",
+        "twitter-quote-hotkey.user.js"
+      ]
+    },
+    {
+      "id": "app-bar-back",
+      "testid": "app-bar-back",
+      "needle": "appBarBack",
+      "minOccurrences": 3,
+      "criticality": "high",
+      "why": "Camel-case feature identifier for the SPA header back button.",
+      "scripts": ["twitter-backspace-back.user.js"]
+    },
+    {
+      "id": "user-name",
+      "testid": "User-Name",
+      "needle": "UserName",
+      "minOccurrences": 10,
+      "criticality": "high",
+      "why": "Component name for the user name container in a tweet.",
+      "scripts": ["twitter-profile-hotkey.user.js", "twitter-inline-follower-count.user.js"]
+    },
+    {
+      "id": "user-avatar-container-prefix",
+      "testid": "UserAvatar-Container-",
+      "needle": "UserAvatar-Container-",
+      "minOccurrences": 1,
+      "criticality": "high",
+      "why": "The literal prefix string appears in bundle source when Twitter constructs the testid.",
+      "scripts": ["twitter-profile-hotkey.user.js", "twitter-inline-follower-count.user.js"]
+    },
+    {
+      "id": "quote-tweet",
+      "testid": "quoteTweet",
+      "needle": "QuoteTweet",
+      "minOccurrences": 10,
+      "criticality": "high",
+      "why": "Component family name for embedded quote tweets.",
+      "scripts": ["twitter-quote-hotkey.user.js"]
+    },
+    {
+      "id": "user-cell",
+      "testid": "UserCell",
+      "needle": "UserCell",
+      "minOccurrences": 5,
+      "criticality": "high",
+      "why": "Component name for user-list row cells.",
+      "scripts": ["twitter-usercell-hotkeys.user.js", "twitter-inline-follower-count.user.js"]
+    },
+    {
+      "id": "retweet",
+      "testid": "retweet",
+      "needle": "retweet",
+      "minOccurrences": 10,
+      "criticality": "medium",
+      "why": "Feature verb; fires if X removes the retweet concept entirely.",
+      "scripts": []
+    },
+    {
+      "id": "unretweet",
+      "testid": "unretweet",
+      "needle": "unretweet",
+      "minOccurrences": 3,
+      "criticality": "medium",
+      "why": "Undo action for retweet.",
+      "scripts": []
+    }
+  ]
+}

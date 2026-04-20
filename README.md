@@ -1,5 +1,7 @@
 # Twitter/X Userscripts
 
+[![Selector Health](https://github.com/digitalby/twitter-userscripts/actions/workflows/selector-health.yml/badge.svg)](https://github.com/digitalby/twitter-userscripts/actions/workflows/selector-health.yml)
+
 A collection of userscripts that add keyboard shortcuts, inline information, and quality-of-life improvements to Twitter/X.
 
 ![Inline follower count and bio on a tweet](screenshots/follower-count.png)

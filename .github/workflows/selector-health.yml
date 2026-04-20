@@ -1,0 +1,95 @@
+name: Selector Health
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/selector-health/**'
+      - '.github/workflows/selector-health.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/selector-health
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tools/selector-health/package-lock.json
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-1.59.1
+
+      - run: npx playwright install --with-deps chromium
+
+      - id: run-check
+        run: npm run check
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selector-health-report
+          path: tools/selector-health/report.json
+          retention-days: 90
+
+      - name: Open or update tracking issue on failure
+        if: steps.run-check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          TITLE="Selector health check failing"
+          BODY_FILE="$(mktemp)"
+          {
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "## Missing selectors"
+            echo
+            jq -r '
+              .results[]
+              | select(.found == false)
+              | "- **\(.id)** (`\(.testid)`) [\(.criticality)] -- used by: \((.scripts | join(", ")) // "(none)")"
+            ' tools/selector-health/report.json
+            echo
+            echo "<details><summary>Full report</summary>"
+            echo
+            echo '```json'
+            cat tools/selector-health/report.json
+            echo '```'
+            echo
+            echo "</details>"
+          } > "$BODY_FILE"
+
+          NUM=$(gh issue list --state open --search "$TITLE in:title" --json number,title \
+            --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n1)
+
+          if [ -z "$NUM" ]; then
+            gh issue create --title "$TITLE" --label "bug" --body-file "$BODY_FILE"
+          else
+            gh issue edit "$NUM" --body-file "$BODY_FILE"
+            gh issue comment "$NUM" --body "Re-run on $(date -u +%FT%TZ): ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+
+      - name: Mark job failed if check failed
+        if: steps.run-check.outcome == 'failure'
+        run: exit 1
