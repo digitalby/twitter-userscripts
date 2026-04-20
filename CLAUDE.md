@@ -11,6 +11,8 @@
 - Namespace: `https://github.com/digitalby`
 
 ## Twitter/X DOM Patterns
+The selectors below are mirrored in `tools/selector-health/selectors.json` and verified weekly by the `Selector Health` GitHub Actions workflow. When you add, rename, or remove a selector here, update that file in the same commit.
+
 - Tweets: `article[data-testid="tweet"]`
 - User name container: `[data-testid="User-Name"]`
 - Avatar with handle: `[data-testid^="UserAvatar-Container-"]`

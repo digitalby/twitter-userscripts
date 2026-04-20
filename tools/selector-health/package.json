@@ -1,0 +1,16 @@
+{
+  "name": "selector-health",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CI health check that greps the live x.com JS bundles for data-testid selectors the userscripts depend on.",
+  "scripts": {
+    "check": "node check.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.59.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
